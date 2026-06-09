@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Orlando</title>
+<title>Outlets Orlando 🛍️</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -668,6 +668,190 @@ body {
   white-space: nowrap;
 }
 .mtoast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* WALMART SECTION */
+.wm-panel { padding: 16px 0; }
+.wm-summary-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.wm-stat {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  text-align: center;
+}
+.wm-stat-val {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.wm-stat-lbl {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-top: 2px;
+}
+.wm-progress-bar-bg {
+  height: 3px;
+  background: var(--surface2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.wm-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px;
+  transition: width .4s cubic-bezier(.4,0,.2,1);
+}
+.wm-section {
+  margin-bottom: 6px;
+}
+.wm-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 4px;
+}
+.wm-section-icon {
+  font-size: 15px;
+}
+.wm-section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  flex: 1;
+}
+.wm-section-count {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.wm-section-chevron {
+  font-size: 13px;
+  color: var(--muted);
+  transition: transform .2s;
+}
+.wm-section.open .wm-section-chevron { transform: rotate(180deg); }
+.wm-items {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px;
+}
+.wm-section.open .wm-items { display: flex; }
+.wm-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+  overflow: hidden;
+}
+.wm-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background .15s;
+}
+.wm-item.checked { background: var(--surface2); }
+.wm-item.checked::before { background: var(--green); }
+.wm-item:active { transform: scale(0.98); }
+.wm-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+  transition: all .15s;
+  color: transparent;
+}
+.wm-item.checked .wm-check {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+}
+.wm-item-body { flex: 1; min-width: 0; }
+.wm-item-name {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 400;
+  transition: all .15s;
+}
+.wm-item.checked .wm-item-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.wm-item-detail {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-weight: 300;
+}
+.wm-item-price {
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.wm-item.checked .wm-item-price { color: var(--muted); }
+.wm-reset-btn {
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  padding: 5px 13px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: all .2s;
+  display: block;
+  margin: 14px auto 0;
+}
+.wm-reset-btn:active { opacity: .6; }
+.wm-total-bar {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.wm-total-label { font-size: 12px; color: var(--muted); }
+.wm-total-val {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+}
 </style>
 </head>
 <body>
@@ -685,6 +869,7 @@ body {
     <button class="tab" onclick="switchDay(1)">Dom 26/01</button>
     <button class="tab" onclick="switchDay(2)">Lun 27/01</button>
     <button class="tab" onclick="switchSection('comidas')">🍽️ Comidas</button>
+    <button class="tab" onclick="switchSection('walmart')">🛒 Walmart</button>
   </div>
 </header>
 
@@ -692,12 +877,14 @@ body {
 <div id="panel-1" class="panel"></div>
 <div id="panel-2" class="panel"></div>
 <div id="panel-comidas" class="panel"></div>
+<div id="panel-walmart" class="panel"></div>
 
 <nav class="bottom-nav">
   <button class="nav-btn active" id="nav-0" onclick="switchDay(0)">Día 1<span class="nav-date">Sáb 25/01</span></button>
   <button class="nav-btn" id="nav-1" onclick="switchDay(1)">Día 2<span class="nav-date">Dom 26/01</span></button>
   <button class="nav-btn" id="nav-2" onclick="switchDay(2)">Día 3<span class="nav-date">Lun 27/01</span></button>
   <button class="nav-btn" id="nav-comidas" onclick="switchSection('comidas')">🍽️<span class="nav-date">Comidas</span></button>
+  <button class="nav-btn" id="nav-walmart" onclick="switchSection('walmart')">🛒<span class="nav-date">Walmart</span></button>
 </nav>
 
 <div class="confetti-wrap" id="confetti-wrap"></div>
@@ -1151,6 +1338,211 @@ window.addEventListener('DOMContentLoaded', function(){
     if(e.target===this) closeMealModal();
   });
 });
+
+// ─── WALMART ───────────────────────────────────────────────
+const wmCategories = [
+  { id:'pan', icon:'🥖', title:'Panadería y Snacks', items:[
+    { name:'Pan lactal', detail:'2 bolsas', price:4 },
+    { name:'Pan para hamburguesas', detail:'1 paquete 11oz', price:2 },
+    { name:'Pan para salchichas', detail:'1 paquete 11oz', price:2 },
+    { name:'Tortillas de harina', detail:'1 paquete', price:3 },
+    { name:'Ritz o similares', detail:'1 paquete 330g', price:4 },
+    { name:'Chippers', detail:'1 bolsa 18oz', price:4 },
+    { name:'Pack variado snacks (Oreo/Chips Ahoy/Ritz)', detail:'1 pack', price:10 },
+    { name:'Donettes Hostess', detail:'1 bolsa 10oz', price:3 },
+    { name:'Rice Krispies Treats', detail:'1 caja 32oz', price:12 },
+    { name:'Granola bars (Nature Valley)', detail:'1 caja x12', price:4 },
+    { name:'Applesauce pouches (GoGo Squeez)', detail:'1 pack x12', price:5 },
+    { name:'Nutella', detail:'1 frasco 350g', price:5 },
+  ]},
+  { id:'lacteos', icon:'🥚', title:'Lácteos y Huevos', items:[
+    { name:'Huevos grandes', detail:'1 cartón 18 unidades', price:3 },
+    { name:'Leche', detail:'1 galón (3.78 lts)', price:4 },
+    { name:'Manteca', detail:'1 paquete 16oz', price:3 },
+    { name:'Yogurt', detail:'1 pote 32oz', price:3 },
+    { name:'Queso feteado', detail:'1 paquete 24oz', price:4 },
+    { name:'Parmesano', detail:'1 paquete 8oz', price:3 },
+  ]},
+  { id:'carnes', icon:'🥩', title:'Carnes y Fiambres', items:[
+    { name:'Pechuga de pollo', detail:'1 bandeja 5lb', price:12 },
+    { name:'Chuletas de cerdo', detail:'1 bandeja 1lb', price:6 },
+    { name:'Jamón Great Value', detail:'1 paquete 32oz', price:9 },
+    { name:'Bacon', detail:'1 paquete 1lb', price:5 },
+    { name:'Salchichas Bar S', detail:'1 paquete 12oz', price:1 },
+    { name:'Albóndigas Great Value', detail:'1 bolsa 32oz', price:8 },
+  ]},
+  { id:'secos', icon:'🍝', title:'Secos y Enlatados', items:[
+    { name:'Pasta Rotini', detail:'2 bolsas 16oz', price:4 },
+    { name:'Arroz Great Value', detail:'1 bolsa 32oz', price:2 },
+    { name:'Puré instantáneo', detail:'1 caja 13oz', price:2 },
+    { name:'Salsa de pasta', detail:'2 frascos', price:4 },
+    { name:'Maíz en lata', detail:'3 latas 15oz', price:3 },
+    { name:'Ravioli Chef Boyardee', detail:'2 latas 15oz', price:4 },
+    { name:'Corned Beef Hash', detail:'1 lata 14oz', price:3 },
+    { name:'Rice-A-Roni', detail:'1 caja 6.4oz', price:2 },
+    { name:'Sopa Maggi + Cabello de ángel', detail:'1 combo', price:4 },
+    { name:'Velveeta Shells & Cheese', detail:'3 cajas 12oz', price:8 },
+    { name:'Atún en lata', detail:'1 pack x3', price:3 },
+    { name:'Sal', detail:'1 paquete 26oz', price:1 },
+    { name:'Aceite', detail:'1 botella 48fl', price:4 },
+    { name:'Salsa picante (Tapatio)', detail:'1 botella chica', price:2 },
+  ]},
+  { id:'congelados', icon:'🧊', title:'Congelados', items:[
+    { name:'Lasaña Stouffer familiar', detail:'1 unidad 2lb', price:10 },
+    { name:'Pizza Rising Crust', detail:'1 unidad 29oz', price:5 },
+    { name:'Corn dogs', detail:'1 bolsa 27oz', price:7 },
+    { name:'Mozzarella sticks', detail:'1 bolsa 18oz', price:5 },
+    { name:'Waffles EGGO', detail:'1 caja 13oz', price:3 },
+    { name:'Sausage Croissant Sandwich', detail:'1 caja 5oz', price:6 },
+    { name:'Tazón amantes de carne', detail:'2 unidades 7oz', price:4 },
+    { name:'Papas fritas', detail:'1 bolsa 32oz', price:3 },
+    { name:'Sandwichs jamón y queso', detail:'2 paquetes 9oz', price:4 },
+  ]},
+  { id:'desayuno', icon:'☕', title:'Desayuno y Bebidas', items:[
+    { name:'Corn Flakes', detail:'1 caja 18oz', price:3 },
+    { name:'Café instantáneo Great Value', detail:'1 frasco 8oz', price:6 },
+    { name:'Té Great Value', detail:'1 caja 8oz', price:3 },
+    { name:'Jugo Tropicana', detail:'1 botella 89oz', price:9 },
+    { name:'Agua Great Value', detail:'1 pack 20 lts', price:6 },
+  ]},
+  { id:'extras', icon:'🎒', title:'Extras', items:[
+    { name:'Bolsas Ziploc Gallon', detail:'1 caja x15', price:4 },
+    { name:'Maní salado o mix de frutos secos', detail:'1 bolsa', price:4 },
+  ]},
+];
+
+const WM_KEY = 'walmart-orlando-checked';
+let wmChecked = new Set();
+
+function wmSaveState() {
+  try { localStorage.setItem(WM_KEY, JSON.stringify([...wmChecked])); } catch(e){}
+}
+function wmLoadState() {
+  try {
+    const raw = localStorage.getItem(WM_KEY);
+    if (raw) JSON.parse(raw).forEach(k => wmChecked.add(k));
+  } catch(e){}
+}
+
+function wmItemKey(catId, idx) { return catId + '-' + idx; }
+
+function wmTotalItems() {
+  return wmCategories.reduce((a,c) => a + c.items.length, 0);
+}
+function wmTotalPrice() {
+  return wmCategories.reduce((a,c) => a + c.items.reduce((b,i) => b + i.price, 0), 0);
+}
+function wmCheckedPrice() {
+  let total = 0;
+  wmCategories.forEach(cat => {
+    cat.items.forEach((item, idx) => {
+      if (wmChecked.has(wmItemKey(cat.id, idx))) total += item.price;
+    });
+  });
+  return total;
+}
+
+function wmToggle(catId, idx) {
+  const key = wmItemKey(catId, idx);
+  if (wmChecked.has(key)) wmChecked.delete(key);
+  else wmChecked.add(key);
+  wmSaveState();
+  renderWalmart();
+}
+
+function wmToggleSection(catId) {
+  const sec = document.getElementById('wmsec-' + catId);
+  if (sec) sec.classList.toggle('open');
+}
+
+function wmReset() {
+  wmChecked.clear();
+  wmSaveState();
+  renderWalmart();
+}
+
+function renderWalmart() {
+  const panel = document.getElementById('panel-walmart');
+  const total = wmTotalItems();
+  const checked = wmChecked.size;
+  const pct = total > 0 ? Math.round(checked / total * 100) : 0;
+  const totalPrice = wmTotalPrice();
+  const checkedPrice = wmCheckedPrice();
+
+  let html = '<div class="wm-panel">';
+
+  // Summary bar
+  html += `
+    <div class="wm-summary-bar">
+      <div class="wm-stat"><div class="wm-stat-val">${checked}</div><div class="wm-stat-lbl">en carrito</div></div>
+      <div class="wm-stat"><div class="wm-stat-val">${total - checked}</div><div class="wm-stat-lbl">pendientes</div></div>
+      <div class="wm-stat"><div class="wm-stat-val">${pct}%</div><div class="wm-stat-lbl">listo</div></div>
+    </div>
+    <div class="wm-total-bar">
+      <span class="wm-total-label">Total estimado del carrito</span>
+      <span class="wm-total-val">$${checkedPrice} <span style="font-size:12px;color:var(--muted);font-weight:400;">/ $${totalPrice}</span></span>
+    </div>
+    <div class="wm-progress-bar-bg">
+      <div class="wm-progress-bar-fill" style="width:${pct}%"></div>
+    </div>`;
+
+  // Categories
+  wmCategories.forEach(cat => {
+    const catDone = cat.items.filter((_,i) => wmChecked.has(wmItemKey(cat.id,i))).length;
+    const isOpen = document.getElementById('wmsec-'+cat.id)?.classList.contains('open') ?? (catDone < cat.items.length);
+    html += `
+      <div class="wm-section ${isOpen?'open':''}" id="wmsec-${cat.id}">
+        <div class="wm-section-header" onclick="wmToggleSection('${cat.id}')">
+          <span class="wm-section-icon">${cat.icon}</span>
+          <span class="wm-section-title">${cat.title}</span>
+          <span class="wm-section-count">${catDone}/${cat.items.length}</span>
+          <span class="wm-section-chevron">▾</span>
+        </div>
+        <div class="wm-items">`;
+    cat.items.forEach((item, idx) => {
+      const key = wmItemKey(cat.id, idx);
+      const isChecked = wmChecked.has(key);
+      html += `
+          <div class="wm-item ${isChecked?'checked':''}" onclick="wmToggle('${cat.id}',${idx})">
+            <div class="wm-check">${isChecked?'✓':''}</div>
+            <div class="wm-item-body">
+              <div class="wm-item-name">${item.name}</div>
+              <div class="wm-item-detail">${item.detail}</div>
+            </div>
+            <div class="wm-item-price">$${item.price}</div>
+          </div>`;
+    });
+    html += `</div></div>`;
+  });
+
+  html += `<button class="wm-reset-btn" onclick="wmReset()">↺ Reiniciar lista</button>`;
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+// Update switchSection to handle walmart too
+function switchSection(section) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+  document.getElementById('panel-' + section).classList.add('active');
+  document.getElementById('nav-' + section).classList.add('active');
+
+  // Activate correct tab
+  const tabs = document.querySelectorAll('.tab');
+  if (section === 'comidas') tabs[tabs.length - 2].classList.add('active');
+  if (section === 'walmart') tabs[tabs.length - 1].classList.add('active');
+
+  document.getElementById('addDayFab').style.display = section === 'comidas' ? 'block' : 'none';
+
+  if (section === 'comidas') renderComidas();
+  if (section === 'walmart') renderWalmart();
+
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+wmLoadState();
 </script>
 
 <button class="add-day-fab" id="addDayFab" onclick="openMealModal()">+ Agregar día</button>
