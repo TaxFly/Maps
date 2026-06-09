@@ -852,6 +852,52 @@ body {
   font-weight: 800;
   color: var(--accent);
 }
+
+/* Walmart edit & icon buttons */
+.wm-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 3px 5px;
+  border-radius: 6px;
+  opacity: 0.5;
+  transition: opacity .15s, background .15s;
+  line-height: 1;
+}
+.wm-icon-btn:hover { opacity: 1; background: var(--surface2); }
+.wm-icon-del:hover { background: rgba(224,92,92,.15); }
+.wm-item-editing {
+  background: var(--surface2) !important;
+  cursor: default !important;
+  border-color: var(--accent) !important;
+}
+.wm-item-editing::before { background: var(--accent) !important; }
+.wm-edit-form { width: 100%; padding: 2px 0; }
+.wm-edit-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  padding: 7px 10px;
+  outline: none;
+  margin-bottom: 6px;
+}
+.wm-edit-input:focus { border-color: var(--accent); }
+.wm-edit-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 70px;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.wm-edit-small { text-align: center; }
+.wm-edit-hint { font-size: 10px; color: var(--muted); margin-bottom: 6px; font-style: italic; }
+.wm-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
+/* Walmart add modal category select */
+#wm-add-cat option { background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -1312,19 +1358,6 @@ function showMToast(msg) {
   setTimeout(()=>t.classList.remove('show'), 2000);
 }
 
-function switchSection(section) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('panel-comidas').classList.add('active');
-  document.getElementById('nav-comidas').classList.add('active');
-  const tabs = document.querySelectorAll('.tab');
-  tabs[tabs.length-1].classList.add('active');
-  document.getElementById('addDayFab').style.display = 'block';
-  renderComidas();
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-
 // Override switchDay to hide fab when on outlets
 const _origSwitchDay = switchDay;
 window.switchDay = function(d) {
@@ -1337,141 +1370,235 @@ window.addEventListener('DOMContentLoaded', function(){
   document.getElementById('mealModal').addEventListener('click', function(e){
     if(e.target===this) closeMealModal();
   });
+  document.getElementById('wmAddModal').addEventListener('click', function(e){
+    if(e.target===this) wmCloseAddModal();
+  });
 });
 
 // ─── WALMART ───────────────────────────────────────────────
-const wmCategories = [
-  { id:'pan', icon:'🥖', title:'Panadería y Snacks', items:[
-    { name:'Pan lactal', detail:'2 bolsas', price:4 },
-    { name:'Pan para hamburguesas', detail:'1 paquete 11oz', price:2 },
-    { name:'Pan para salchichas', detail:'1 paquete 11oz', price:2 },
-    { name:'Tortillas de harina', detail:'1 paquete', price:3 },
-    { name:'Ritz o similares', detail:'1 paquete 330g', price:4 },
-    { name:'Chippers', detail:'1 bolsa 18oz', price:4 },
-    { name:'Pack variado snacks (Oreo/Chips Ahoy/Ritz)', detail:'1 pack', price:10 },
-    { name:'Donettes Hostess', detail:'1 bolsa 10oz', price:3 },
-    { name:'Rice Krispies Treats', detail:'1 caja 32oz', price:12 },
-    { name:'Granola bars (Nature Valley)', detail:'1 caja x12', price:4 },
-    { name:'Applesauce pouches (GoGo Squeez)', detail:'1 pack x12', price:5 },
-    { name:'Nutella', detail:'1 frasco 350g', price:5 },
+const WM_DATA_KEY = 'walmart-orlando-data-v2';
+const WM_CHECKED_KEY = 'walmart-orlando-checked-v2';
+const WM_OPEN_KEY = 'walmart-orlando-open-v2';
+
+const wmCatMeta = {
+  pan:       { icon:'🥖', title:'Panadería y Snacks' },
+  lacteos:   { icon:'🥚', title:'Lácteos y Huevos' },
+  carnes:    { icon:'🥩', title:'Carnes y Fiambres' },
+  secos:     { icon:'🍝', title:'Secos y Enlatados' },
+  congelados:{ icon:'🧊', title:'Congelados' },
+  desayuno:  { icon:'☕', title:'Desayuno y Bebidas' },
+  extras:    { icon:'🎒', title:'Extras' },
+};
+
+let wmData = [
+  { id:'pan', items:[
+    { id:'p1', name:'Pan lactal', qty:2, unit:'bolsas', price:2 },
+    { id:'p2', name:'Pan para hamburguesas', qty:1, unit:'paquete', price:2 },
+    { id:'p3', name:'Pan para salchichas', qty:1, unit:'paquete', price:2 },
+    { id:'p4', name:'Tortillas de harina', qty:1, unit:'paquete', price:3 },
+    { id:'p5', name:'Ritz o similares', qty:1, unit:'paquete 330g', price:4 },
+    { id:'p6', name:'Chippers', qty:1, unit:'bolsa 18oz', price:4 },
+    { id:'p7', name:'Pack variado snacks', qty:1, unit:'pack', price:10 },
+    { id:'p8', name:'Donettes Hostess', qty:1, unit:'bolsa 10oz', price:3 },
+    { id:'p9', name:'Rice Krispies Treats', qty:1, unit:'caja 32oz', price:12 },
+    { id:'p10', name:'Granola bars Nature Valley', qty:1, unit:'caja x12', price:4 },
+    { id:'p11', name:'Applesauce pouches GoGo Squeez', qty:1, unit:'pack x12', price:5 },
+    { id:'p12', name:'Nutella', qty:1, unit:'frasco 350g', price:5 },
   ]},
-  { id:'lacteos', icon:'🥚', title:'Lácteos y Huevos', items:[
-    { name:'Huevos grandes', detail:'1 cartón 18 unidades', price:3 },
-    { name:'Leche', detail:'1 galón (3.78 lts)', price:4 },
-    { name:'Manteca', detail:'1 paquete 16oz', price:3 },
-    { name:'Yogurt', detail:'1 pote 32oz', price:3 },
-    { name:'Queso feteado', detail:'1 paquete 24oz', price:4 },
-    { name:'Parmesano', detail:'1 paquete 8oz', price:3 },
+  { id:'lacteos', items:[
+    { id:'l1', name:'Huevos grandes', qty:1, unit:'cartón 18 uds', price:3 },
+    { id:'l2', name:'Leche', qty:1, unit:'galón (3.78 lts)', price:4 },
+    { id:'l3', name:'Manteca', qty:1, unit:'paquete 16oz', price:3 },
+    { id:'l4', name:'Yogurt', qty:1, unit:'pote 32oz', price:3 },
+    { id:'l5', name:'Queso feteado', qty:1, unit:'paquete 24oz', price:4 },
+    { id:'l6', name:'Parmesano', qty:1, unit:'paquete 8oz', price:3 },
   ]},
-  { id:'carnes', icon:'🥩', title:'Carnes y Fiambres', items:[
-    { name:'Pechuga de pollo', detail:'1 bandeja 5lb', price:12 },
-    { name:'Chuletas de cerdo', detail:'1 bandeja 1lb', price:6 },
-    { name:'Jamón Great Value', detail:'1 paquete 32oz', price:9 },
-    { name:'Bacon', detail:'1 paquete 1lb', price:5 },
-    { name:'Salchichas Bar S', detail:'1 paquete 12oz', price:1 },
-    { name:'Albóndigas Great Value', detail:'1 bolsa 32oz', price:8 },
+  { id:'carnes', items:[
+    { id:'c1', name:'Pechuga de pollo', qty:1, unit:'bandeja 5lb', price:12 },
+    { id:'c2', name:'Chuletas de cerdo', qty:1, unit:'bandeja 1lb', price:6 },
+    { id:'c3', name:'Jamón Great Value', qty:1, unit:'paquete 32oz', price:9 },
+    { id:'c4', name:'Bacon', qty:1, unit:'paquete 1lb', price:5 },
+    { id:'c5', name:'Salchichas Bar S', qty:1, unit:'paquete 12oz', price:1 },
+    { id:'c6', name:'Albóndigas Great Value', qty:1, unit:'bolsa 32oz', price:8 },
   ]},
-  { id:'secos', icon:'🍝', title:'Secos y Enlatados', items:[
-    { name:'Pasta Rotini', detail:'2 bolsas 16oz', price:4 },
-    { name:'Arroz Great Value', detail:'1 bolsa 32oz', price:2 },
-    { name:'Puré instantáneo', detail:'1 caja 13oz', price:2 },
-    { name:'Salsa de pasta', detail:'2 frascos', price:4 },
-    { name:'Maíz en lata', detail:'3 latas 15oz', price:3 },
-    { name:'Ravioli Chef Boyardee', detail:'2 latas 15oz', price:4 },
-    { name:'Corned Beef Hash', detail:'1 lata 14oz', price:3 },
-    { name:'Rice-A-Roni', detail:'1 caja 6.4oz', price:2 },
-    { name:'Sopa Maggi + Cabello de ángel', detail:'1 combo', price:4 },
-    { name:'Velveeta Shells & Cheese', detail:'3 cajas 12oz', price:8 },
-    { name:'Atún en lata', detail:'1 pack x3', price:3 },
-    { name:'Sal', detail:'1 paquete 26oz', price:1 },
-    { name:'Aceite', detail:'1 botella 48fl', price:4 },
-    { name:'Salsa picante (Tapatio)', detail:'1 botella chica', price:2 },
+  { id:'secos', items:[
+    { id:'s1', name:'Pasta Rotini', qty:2, unit:'bolsas 16oz', price:2 },
+    { id:'s2', name:'Arroz Great Value', qty:1, unit:'bolsa 32oz', price:2 },
+    { id:'s3', name:'Puré instantáneo', qty:1, unit:'caja 13oz', price:2 },
+    { id:'s4', name:'Salsa de pasta', qty:2, unit:'frascos', price:2 },
+    { id:'s5', name:'Maíz en lata', qty:3, unit:'latas 15oz', price:1 },
+    { id:'s6', name:'Ravioli Chef Boyardee', qty:2, unit:'latas 15oz', price:2 },
+    { id:'s7', name:'Corned Beef Hash', qty:1, unit:'lata 14oz', price:3 },
+    { id:'s8', name:'Rice-A-Roni', qty:1, unit:'caja 6.4oz', price:2 },
+    { id:'s9', name:'Sopa Maggi + Cabello de ángel', qty:1, unit:'combo', price:4 },
+    { id:'s10', name:'Velveeta Shells & Cheese', qty:3, unit:'cajas 12oz', price:3 },
+    { id:'s11', name:'Atún en lata', qty:1, unit:'pack x3', price:3 },
+    { id:'s12', name:'Sal', qty:1, unit:'paquete 26oz', price:1 },
+    { id:'s13', name:'Aceite', qty:1, unit:'botella 48fl', price:4 },
+    { id:'s14', name:'Salsa picante Tapatio', qty:1, unit:'botella chica', price:2 },
   ]},
-  { id:'congelados', icon:'🧊', title:'Congelados', items:[
-    { name:'Lasaña Stouffer familiar', detail:'1 unidad 2lb', price:10 },
-    { name:'Pizza Rising Crust', detail:'1 unidad 29oz', price:5 },
-    { name:'Corn dogs', detail:'1 bolsa 27oz', price:7 },
-    { name:'Mozzarella sticks', detail:'1 bolsa 18oz', price:5 },
-    { name:'Waffles EGGO', detail:'1 caja 13oz', price:3 },
-    { name:'Sausage Croissant Sandwich', detail:'1 caja 5oz', price:6 },
-    { name:'Tazón amantes de carne', detail:'2 unidades 7oz', price:4 },
-    { name:'Papas fritas', detail:'1 bolsa 32oz', price:3 },
-    { name:'Sandwichs jamón y queso', detail:'2 paquetes 9oz', price:4 },
+  { id:'congelados', items:[
+    { id:'cn1', name:'Lasaña Stouffer familiar', qty:1, unit:'unidad 2lb', price:10 },
+    { id:'cn2', name:'Pizza Rising Crust', qty:1, unit:'unidad 29oz', price:5 },
+    { id:'cn3', name:'Corn dogs', qty:1, unit:'bolsa 27oz', price:7 },
+    { id:'cn4', name:'Mozzarella sticks', qty:1, unit:'bolsa 18oz', price:5 },
+    { id:'cn5', name:'Waffles EGGO', qty:1, unit:'caja 13oz', price:3 },
+    { id:'cn6', name:'Sausage Croissant Sandwich', qty:1, unit:'caja 5oz', price:6 },
+    { id:'cn7', name:'Tazón amantes de carne', qty:2, unit:'unidades 7oz', price:2 },
+    { id:'cn8', name:'Papas fritas', qty:1, unit:'bolsa 32oz', price:3 },
+    { id:'cn9', name:'Sandwichs jamón y queso', qty:2, unit:'paquetes 9oz', price:2 },
   ]},
-  { id:'desayuno', icon:'☕', title:'Desayuno y Bebidas', items:[
-    { name:'Corn Flakes', detail:'1 caja 18oz', price:3 },
-    { name:'Café instantáneo Great Value', detail:'1 frasco 8oz', price:6 },
-    { name:'Té Great Value', detail:'1 caja 8oz', price:3 },
-    { name:'Jugo Tropicana', detail:'1 botella 89oz', price:9 },
-    { name:'Agua Great Value', detail:'1 pack 20 lts', price:6 },
+  { id:'desayuno', items:[
+    { id:'d1', name:'Corn Flakes', qty:1, unit:'caja 18oz', price:3 },
+    { id:'d2', name:'Café instantáneo Great Value', qty:1, unit:'frasco 8oz', price:6 },
+    { id:'d3', name:'Té Great Value', qty:1, unit:'caja 8oz', price:3 },
+    { id:'d4', name:'Jugo Tropicana', qty:1, unit:'botella 89oz', price:9 },
+    { id:'d5', name:'Agua Great Value', qty:1, unit:'pack 20 lts', price:6 },
   ]},
-  { id:'extras', icon:'🎒', title:'Extras', items:[
-    { name:'Bolsas Ziploc Gallon', detail:'1 caja x15', price:4 },
-    { name:'Maní salado o mix de frutos secos', detail:'1 bolsa', price:4 },
+  { id:'extras', items:[
+    { id:'e1', name:'Bolsas Ziploc Gallon', qty:1, unit:'caja x15', price:4 },
+    { id:'e2', name:'Maní salado o mix de frutos secos', qty:1, unit:'bolsa', price:4 },
   ]},
 ];
 
-const WM_KEY = 'walmart-orlando-checked';
 let wmChecked = new Set();
+let wmOpenSections = new Set(Object.keys(wmCatMeta));
+let wmEditingItem = null; // { catId, itemId } or null
 
-function wmSaveState() {
-  try { localStorage.setItem(WM_KEY, JSON.stringify([...wmChecked])); } catch(e){}
-}
-function wmLoadState() {
+function wmSave() {
   try {
-    const raw = localStorage.getItem(WM_KEY);
-    if (raw) JSON.parse(raw).forEach(k => wmChecked.add(k));
+    localStorage.setItem(WM_DATA_KEY, JSON.stringify(wmData));
+    localStorage.setItem(WM_CHECKED_KEY, JSON.stringify([...wmChecked]));
+    localStorage.setItem(WM_OPEN_KEY, JSON.stringify([...wmOpenSections]));
   } catch(e){}
 }
 
-function wmItemKey(catId, idx) { return catId + '-' + idx; }
-
-function wmTotalItems() {
-  return wmCategories.reduce((a,c) => a + c.items.length, 0);
-}
-function wmTotalPrice() {
-  return wmCategories.reduce((a,c) => a + c.items.reduce((b,i) => b + i.price, 0), 0);
-}
-function wmCheckedPrice() {
-  let total = 0;
-  wmCategories.forEach(cat => {
-    cat.items.forEach((item, idx) => {
-      if (wmChecked.has(wmItemKey(cat.id, idx))) total += item.price;
-    });
-  });
-  return total;
+function wmLoad() {
+  try {
+    const d = localStorage.getItem(WM_DATA_KEY);
+    if (d) wmData = JSON.parse(d);
+    const c = localStorage.getItem(WM_CHECKED_KEY);
+    if (c) JSON.parse(c).forEach(k => wmChecked.add(k));
+    const o = localStorage.getItem(WM_OPEN_KEY);
+    if (o) { wmOpenSections.clear(); JSON.parse(o).forEach(k => wmOpenSections.add(k)); }
+  } catch(e){}
 }
 
-function wmToggle(catId, idx) {
-  const key = wmItemKey(catId, idx);
-  if (wmChecked.has(key)) wmChecked.delete(key);
-  else wmChecked.add(key);
-  wmSaveState();
+function wmGetCat(catId) { return wmData.find(c => c.id === catId); }
+function wmGetItem(catId, itemId) { return wmGetCat(catId)?.items.find(i => i.id === itemId); }
+
+function wmItemPrice(item) { return (item.qty || 1) * (item.price || 0); }
+
+function wmTotalAll() { return wmData.reduce((a,c) => a + c.items.reduce((b,i) => b + wmItemPrice(i), 0), 0); }
+function wmTotalChecked() {
+  let t = 0;
+  wmData.forEach(cat => cat.items.forEach(item => {
+    if (wmChecked.has(item.id)) t += wmItemPrice(item);
+  }));
+  return t;
+}
+function wmCountAll() { return wmData.reduce((a,c) => a + c.items.length, 0); }
+
+function wmToggle(itemId, e) {
+  e.stopPropagation();
+  if (wmChecked.has(itemId)) wmChecked.delete(itemId);
+  else wmChecked.add(itemId);
+  wmSave();
   renderWalmart();
 }
 
 function wmToggleSection(catId) {
-  const sec = document.getElementById('wmsec-' + catId);
-  if (sec) sec.classList.toggle('open');
+  if (wmOpenSections.has(catId)) wmOpenSections.delete(catId);
+  else wmOpenSections.add(catId);
+  wmSave();
+  renderWalmart();
+}
+
+function wmDeleteItem(catId, itemId, e) {
+  e.stopPropagation();
+  if (!confirm('¿Eliminar este producto?')) return;
+  const cat = wmGetCat(catId);
+  cat.items = cat.items.filter(i => i.id !== itemId);
+  wmChecked.delete(itemId);
+  wmSave();
+  renderWalmart();
+  showMToast('Producto eliminado');
+}
+
+function wmStartEdit(catId, itemId, e) {
+  e.stopPropagation();
+  wmEditingItem = { catId, itemId };
+  renderWalmart();
+  setTimeout(() => document.getElementById('wm-edit-name')?.focus(), 50);
+}
+
+function wmCancelEdit() {
+  wmEditingItem = null;
+  renderWalmart();
+}
+
+function wmSaveEdit() {
+  const { catId, itemId } = wmEditingItem;
+  const item = wmGetItem(catId, itemId);
+  const name = document.getElementById('wm-edit-name').value.trim();
+  const qty  = parseFloat(document.getElementById('wm-edit-qty').value) || 1;
+  const unit = document.getElementById('wm-edit-unit').value.trim();
+  const price= parseFloat(document.getElementById('wm-edit-price').value) || 0;
+  if (!name) return;
+  item.name  = name;
+  item.qty   = qty;
+  item.unit  = unit;
+  item.price = price;
+  wmEditingItem = null;
+  wmSave();
+  renderWalmart();
+  showMToast('Guardado ✓');
+}
+
+function wmOpenAddModal() {
+  document.getElementById('wmAddModal').classList.add('open');
+  document.getElementById('wm-add-name').focus();
+}
+function wmCloseAddModal() {
+  document.getElementById('wmAddModal').classList.remove('open');
+  ['wm-add-name','wm-add-qty','wm-add-unit','wm-add-price'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+}
+function wmAddItem() {
+  const name  = document.getElementById('wm-add-name').value.trim();
+  const catId = document.getElementById('wm-add-cat').value;
+  const qty   = parseFloat(document.getElementById('wm-add-qty').value) || 1;
+  const unit  = document.getElementById('wm-add-unit').value.trim() || '';
+  const price = parseFloat(document.getElementById('wm-add-price').value) || 0;
+  if (!name) { alert('Escribí el nombre del producto'); return; }
+  const cat = wmGetCat(catId);
+  const newId = 'custom-' + Date.now();
+  cat.items.push({ id: newId, name, qty, unit, price });
+  wmOpenSections.add(catId);
+  wmSave();
+  renderWalmart();
+  wmCloseAddModal();
+  showMToast('Producto agregado ✓');
 }
 
 function wmReset() {
+  if (!confirm('¿Reiniciar todos los checks?')) return;
   wmChecked.clear();
-  wmSaveState();
+  wmSave();
   renderWalmart();
 }
 
 function renderWalmart() {
   const panel = document.getElementById('panel-walmart');
-  const total = wmTotalItems();
+  const total = wmCountAll();
   const checked = wmChecked.size;
   const pct = total > 0 ? Math.round(checked / total * 100) : 0;
-  const totalPrice = wmTotalPrice();
-  const checkedPrice = wmCheckedPrice();
+  const totalAll = wmTotalAll().toFixed(2);
+  const totalChk = wmTotalChecked().toFixed(2);
 
   let html = '<div class="wm-panel">';
 
-  // Summary bar
   html += `
     <div class="wm-summary-bar">
       <div class="wm-stat"><div class="wm-stat-val">${checked}</div><div class="wm-stat-lbl">en carrito</div></div>
@@ -1479,43 +1606,76 @@ function renderWalmart() {
       <div class="wm-stat"><div class="wm-stat-val">${pct}%</div><div class="wm-stat-lbl">listo</div></div>
     </div>
     <div class="wm-total-bar">
-      <span class="wm-total-label">Total estimado del carrito</span>
-      <span class="wm-total-val">$${checkedPrice} <span style="font-size:12px;color:var(--muted);font-weight:400;">/ $${totalPrice}</span></span>
+      <span class="wm-total-label">Total del carrito</span>
+      <span class="wm-total-val">$${totalChk} <span style="font-size:12px;color:var(--muted);font-weight:400;">/ $${totalAll}</span></span>
     </div>
     <div class="wm-progress-bar-bg">
       <div class="wm-progress-bar-fill" style="width:${pct}%"></div>
     </div>`;
 
-  // Categories
-  wmCategories.forEach(cat => {
-    const catDone = cat.items.filter((_,i) => wmChecked.has(wmItemKey(cat.id,i))).length;
-    const isOpen = document.getElementById('wmsec-'+cat.id)?.classList.contains('open') ?? (catDone < cat.items.length);
+  wmData.forEach(cat => {
+    const meta = wmCatMeta[cat.id] || { icon:'📦', title: cat.id };
+    const catDone = cat.items.filter(i => wmChecked.has(i.id)).length;
+    const isOpen = wmOpenSections.has(cat.id);
+    const isEditing = wmEditingItem?.catId === cat.id;
+
     html += `
       <div class="wm-section ${isOpen?'open':''}" id="wmsec-${cat.id}">
         <div class="wm-section-header" onclick="wmToggleSection('${cat.id}')">
-          <span class="wm-section-icon">${cat.icon}</span>
-          <span class="wm-section-title">${cat.title}</span>
+          <span class="wm-section-icon">${meta.icon}</span>
+          <span class="wm-section-title">${meta.title}</span>
           <span class="wm-section-count">${catDone}/${cat.items.length}</span>
           <span class="wm-section-chevron">▾</span>
         </div>
         <div class="wm-items">`;
-    cat.items.forEach((item, idx) => {
-      const key = wmItemKey(cat.id, idx);
-      const isChecked = wmChecked.has(key);
-      html += `
-          <div class="wm-item ${isChecked?'checked':''}" onclick="wmToggle('${cat.id}',${idx})">
+
+    cat.items.forEach(item => {
+      const isChecked = wmChecked.has(item.id);
+      const isEditingThis = wmEditingItem?.catId === cat.id && wmEditingItem?.itemId === item.id;
+      const lineTotal = (wmItemPrice(item)).toFixed(2);
+
+      if (isEditingThis) {
+        html += `
+          <div class="wm-item wm-item-editing" onclick="event.stopPropagation()">
+            <div class="wm-edit-form">
+              <input class="wm-edit-input wm-edit-name" id="wm-edit-name" placeholder="Nombre del producto" value="${item.name.replace(/"/g,'&quot;')}">
+              <div class="wm-edit-row">
+                <input class="wm-edit-input wm-edit-small" id="wm-edit-qty" type="number" min="0.1" step="0.1" placeholder="Cant." value="${item.qty}">
+                <input class="wm-edit-input wm-edit-unit" id="wm-edit-unit" placeholder="Unidad (oz, lb, caja…)" value="${item.unit.replace(/"/g,'&quot;')}">
+                <input class="wm-edit-input wm-edit-small" id="wm-edit-price" type="number" min="0" step="0.01" placeholder="$ c/u" value="${item.price}">
+              </div>
+              <div class="wm-edit-hint">Precio unitario. Total = cantidad × precio.</div>
+              <div class="wm-edit-actions">
+                <button class="mbtn" onclick="wmCancelEdit()">Cancelar</button>
+                <button class="mbtn msave" onclick="wmSaveEdit()">Guardar</button>
+              </div>
+            </div>
+          </div>`;
+      } else {
+        html += `
+          <div class="wm-item ${isChecked?'checked':''}" onclick="wmToggle('${item.id}', event)">
             <div class="wm-check">${isChecked?'✓':''}</div>
             <div class="wm-item-body">
               <div class="wm-item-name">${item.name}</div>
-              <div class="wm-item-detail">${item.detail}</div>
+              <div class="wm-item-detail">${item.qty} ${item.unit}</div>
             </div>
-            <div class="wm-item-price">$${item.price}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+              <div class="wm-item-price">$${lineTotal}</div>
+              <button class="wm-icon-btn" onclick="wmStartEdit('${cat.id}','${item.id}',event)" title="Editar">✏️</button>
+              <button class="wm-icon-btn wm-icon-del" onclick="wmDeleteItem('${cat.id}','${item.id}',event)" title="Eliminar">✕</button>
+            </div>
           </div>`;
+      }
     });
+
     html += `</div></div>`;
   });
 
-  html += `<button class="wm-reset-btn" onclick="wmReset()">↺ Reiniciar lista</button>`;
+  html += `
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
+      <button class="wm-reset-btn" onclick="wmOpenAddModal()">+ Agregar producto</button>
+      <button class="wm-reset-btn" onclick="wmReset()">↺ Reiniciar checks</button>
+    </div>`;
   html += '</div>';
   panel.innerHTML = html;
 }
@@ -1529,7 +1689,6 @@ function switchSection(section) {
   document.getElementById('panel-' + section).classList.add('active');
   document.getElementById('nav-' + section).classList.add('active');
 
-  // Activate correct tab
   const tabs = document.querySelectorAll('.tab');
   if (section === 'comidas') tabs[tabs.length - 2].classList.add('active');
   if (section === 'walmart') tabs[tabs.length - 1].classList.add('active');
@@ -1542,7 +1701,7 @@ function switchSection(section) {
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-wmLoadState();
+wmLoad();
 </script>
 
 <button class="add-day-fab" id="addDayFab" onclick="openMealModal()">+ Agregar día</button>
@@ -1570,5 +1729,43 @@ wmLoadState();
   </div>
 </div>
 <div class="mtoast" id="mtoast"></div>
+
+<div class="modal-bg" id="wmAddModal">
+  <div class="modal-box">
+    <h2>Agregar producto</h2>
+    <div class="mform-group">
+      <label>Nombre</label>
+      <input type="text" id="wm-add-name" placeholder="ej: Mantequilla de maní">
+    </div>
+    <div class="mform-group">
+      <label>Categoría</label>
+      <select id="wm-add-cat">
+        <option value="pan">🥖 Panadería y Snacks</option>
+        <option value="lacteos">🥚 Lácteos y Huevos</option>
+        <option value="carnes">🥩 Carnes y Fiambres</option>
+        <option value="secos">🍝 Secos y Enlatados</option>
+        <option value="congelados">🧊 Congelados</option>
+        <option value="desayuno">☕ Desayuno y Bebidas</option>
+        <option value="extras">🎒 Extras</option>
+      </select>
+    </div>
+    <div class="mform-group">
+      <label>Cantidad</label>
+      <input type="number" id="wm-add-qty" placeholder="1" min="0.1" step="0.1" value="1">
+    </div>
+    <div class="mform-group">
+      <label>Unidad de medida</label>
+      <input type="text" id="wm-add-unit" placeholder="ej: bolsa 16oz, caja, lb…">
+    </div>
+    <div class="mform-group">
+      <label>Precio unitario (USD)</label>
+      <input type="number" id="wm-add-price" placeholder="0.00" min="0" step="0.01">
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn-ghost" onclick="wmCloseAddModal()">Cancelar</button>
+      <button class="mbtn-primary" onclick="wmAddItem()">Agregar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
