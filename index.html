@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title> Orlando Planning </title>
+<meta name="apple-mobile-web-app-title" content="Orlando Planning">
+<title>Orlando Planning</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' rx='90' fill='%230e0e10'/%3E%3Cg opacity='0.055' stroke='%23f5c842' stroke-width='1'%3E%3Cline x1='0' y1='60' x2='400' y2='60'/%3E%3Cline x1='0' y1='120' x2='400' y2='120'/%3E%3Cline x1='0' y1='180' x2='400' y2='180'/%3E%3Cline x1='0' y1='240' x2='400' y2='240'/%3E%3Cline x1='0' y1='300' x2='400' y2='300'/%3E%3Cline x1='0' y1='360' x2='400' y2='360'/%3E%3Cline x1='60' y1='0' x2='60' y2='400'/%3E%3Cline x1='120' y1='0' x2='120' y2='400'/%3E%3Cline x1='180' y1='0' x2='180' y2='400'/%3E%3Cline x1='240' y1='0' x2='240' y2='400'/%3E%3Cline x1='300' y1='0' x2='300' y2='400'/%3E%3Cline x1='360' y1='0' x2='360' y2='400'/%3E%3C/g%3E%3Crect x='80' y='160' width='240' height='190' rx='18' fill='%231a1a1e' stroke='%23f5c842' stroke-width='3.5'/%3E%3Cpath d='M135 160 C135 102 265 102 265 160' fill='none' stroke='%23f5c842' stroke-width='11' stroke-linecap='round'/%3E%3Ccircle cx='200' cy='222' r='36' fill='%23f5c842'/%3E%3Cpath d='M176 244 Q200 298 200 298 Q200 298 224 244' fill='%23f5c842'/%3E%3Ccircle cx='200' cy='218' r='14' fill='%231a1a1e'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -213,6 +215,9 @@ body {
 }
 .stop-card.visited::before { background: var(--green); }
 .stop-card:active { transform: scale(0.98); }
+.stop-card .wm-icon-btn:active,
+.stop-card a:active { transform: none; }
+.stop-card.stop-editing:active { transform: none; }
 
 .stop-num {
   width: 28px;
@@ -258,7 +263,8 @@ body {
 }
 .stop-card.visited .stop-desc { opacity: 0.5; }
 
-.stop-footer { display: flex; align-items: center; justify-content: space-between; }
+.stop-footer { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.stop-footer-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
 .badges { display: flex; gap: 5px; flex-wrap: wrap; }
 .badge {
   font-size: 10px;
@@ -867,6 +873,16 @@ body {
 }
 .wm-icon-btn:hover { opacity: 1; background: var(--surface2); }
 .wm-icon-del:hover { background: rgba(224,92,92,.15); }
+.stop-action-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 14px;
+  padding: 0;
+}
 .wm-item-editing {
   background: var(--surface2) !important;
   cursor: default !important;
@@ -1022,9 +1038,9 @@ body.theme-comidas .outlets-stab.active { background: #5ecf8a; color: #0e0e10; b
   <div class="header-top">
     <div>
       <div class="header-title" id="main-title">Outlets <span class="ht-accent">Orlando</span></div>
-      <div class="header-subtitle" id="main-subtitle">324 Newcastle Dr · 25–27 enero</div>
+      <div class="header-subtitle" id="main-subtitle">🛍️ Cronograma de compras · 25–27 enero</div>
     </div>
-    <div class="global-counter" id="global-counter">0 / 32</div>
+    <div class="global-counter" id="global-counter">—</div>
   </div>
   <div class="tabs">
     <button class="tab active" id="maintab-outlets" onclick="switchSection('outlets')">🛍️ Outlets</button>
@@ -1046,10 +1062,15 @@ body.theme-comidas .outlets-stab.active { background: #5ecf8a; color: #0e0e10; b
 <div class="confetti-wrap" id="confetti-wrap"></div>
 
 <script>
-const HOTEL = {
-  addr: "324 Newcastle Dr, Kissimmee FL 34746",
-  url: "https://www.google.com/maps/search/?api=1&query=28.3223251,-81.4939467"
-};
+const HOTEL_KEY = 'orlando-hotel-v1';
+let hotel = { addr: "324 Newcastle Dr, Kissimmee FL 34746", url: "https://www.google.com/maps/search/?api=1&query=28.3223251,-81.4939467" };
+function hotelLoad() {
+  try { const d = localStorage.getItem(HOTEL_KEY); if(d) hotel = JSON.parse(d); } catch(e){}
+}
+function hotelSave() {
+  try { localStorage.setItem(HOTEL_KEY, JSON.stringify(hotel)); } catch(e){}
+}
+hotelLoad();
 
 // ─── OUTLETS STATE (declared early to avoid TDZ errors) ───
 let outletSubTab = 'cronograma';
@@ -1222,6 +1243,17 @@ renderOutlets();
 updateGlobal();
 
 // ─── COMIDAS ───────────────────────────────────────────────
+const MEAL_KEY = 'orlando-meals-v1';
+function mealSave() {
+  try { localStorage.setItem(MEAL_KEY, JSON.stringify(mealData)); } catch(e) {}
+}
+function mealLoad() {
+  try {
+    const d = localStorage.getItem(MEAL_KEY);
+    if (d) mealData = JSON.parse(d);
+  } catch(e) {}
+}
+
 let mealData = [
   { id:1, date:"17 ene", title:"Llegada (5pm)", type:"arrival",
     meals:["—","—","Delivery o aeropuerto"], snacks:[], notes:"Llegás a las 5pm. No cocinar." },
@@ -1259,6 +1291,7 @@ let mealData = [
     meals:["Tostadas con Nutella + café + Donettes","Wrap rápido con lo que quede","—"],
     snacks:[], notes:"Liquidar restos. No comprar nada extra." },
 ];
+mealLoad();
 
 const mealNames = ["Desayuno","Almuerzo","Cena"];
 const typeConf = {
@@ -1347,6 +1380,7 @@ function saveMealCell(dayId, idx) {
   const textEl = document.getElementById(`mtext-${dayId}-${idx}`);
   textEl.textContent = val;
   textEl.style.display = '';
+  mealSave();
   showMToast('Guardado ✓');
 }
 
@@ -1371,10 +1405,12 @@ function addSnackM(id) {
   mealData.find(d=>d.id===id).snacks.push(val);
   rerenderSnacksM(id);
   hideSnackInputM(id);
+  mealSave();
   showMToast('Snack agregado ✓');
 }
 function removeSnackM(id, si) {
   mealData.find(d=>d.id===id).snacks.splice(si,1);
+  mealSave();
   rerenderSnacksM(id);
 }
 function rerenderSnacksM(id) {
@@ -1387,10 +1423,12 @@ function rerenderSnacksM(id) {
 }
 function saveMealNotes(id, val) {
   mealData.find(d=>d.id===id).notes = val;
+  mealSave();
 }
 function deleteMealDay(id) {
   if (!confirm('¿Eliminar este día?')) return;
   mealData = mealData.filter(d=>d.id!==id);
+  mealSave();
   renderComidas();
   showMToast('Día eliminado');
 }
@@ -1412,6 +1450,7 @@ function addMealDay() {
     ],
     snacks: [], notes: ''
   });
+  mealSave();
   renderComidas();
   closeMealModal();
   ['mDate','mTitle','mBreakfast','mLunch','mDinner'].forEach(id=>document.getElementById(id).value='');
@@ -1419,8 +1458,25 @@ function addMealDay() {
   setTimeout(()=>{ document.getElementById('mcard-'+newId)?.scrollIntoView({behavior:'smooth',block:'center'}); },100);
 }
 
+function openHotelEdit() {
+  document.getElementById('hotelEditModal').classList.add('open');
+  document.getElementById('hotel-edit-addr').value = hotel.addr;
+  document.getElementById('hotel-edit-url').value = hotel.url;
+  setTimeout(() => document.getElementById('hotel-edit-addr').focus(), 50);
+}
+function closeHotelEdit() { document.getElementById('hotelEditModal').classList.remove('open'); }
+function saveHotelEdit() {
+  const addr = document.getElementById('hotel-edit-addr').value.trim();
+  if (!addr) return;
+  hotel.addr = addr;
+  hotel.url = document.getElementById('hotel-edit-url').value.trim() || hotel.url;
+  hotelSave();
+  closeHotelEdit();
+  renderOutlets();
+  showMToast('Dirección guardada ✓');
+}
+
 function showMToast(msg) {
-  const t = document.getElementById('mtoast');
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2000);
@@ -1440,6 +1496,9 @@ window.addEventListener('DOMContentLoaded', function(){
   });
   document.getElementById('wmAddModal').addEventListener('click', function(e){
     if(e.target===this) wmCloseAddModal();
+  });
+  document.getElementById('hotelEditModal').addEventListener('click', function(e){
+    if(e.target===this) closeHotelEdit();
   });
 });
 
@@ -1753,7 +1812,7 @@ const sectionMeta = {
   outlets: {
     title: 'Outlets',
     accent: 'Orlando',
-    subtitle: '324 Newcastle Dr · 25–27 enero',
+    subtitle: '🛍️ Cronograma de compras · 25–27 enero',
     theme: 'theme-outlets'
   },
   comidas: {
@@ -1871,14 +1930,17 @@ function renderDayContent(d) {
   const allDone = done === total && total > 0;
 
   let html = `
-    <a class="hotel-bar" href="${HOTEL.url}">
-      <div class="hotel-icon">🏠</div>
-      <div class="hotel-info">
-        <div class="hotel-label">Punto de partida</div>
-        <div class="hotel-addr">${HOTEL.addr}</div>
-      </div>
-      <div class="hotel-arrow">↗</div>
-    </a>`;
+    <div class="hotel-bar" id="hotel-bar-${d}">
+      <a href="${hotel.url}" style="display:flex;align-items:center;gap:10px;flex:1;text-decoration:none;min-width:0" onclick="event.stopPropagation()">
+        <div class="hotel-icon">🏠</div>
+        <div class="hotel-info">
+          <div class="hotel-label">Punto de partida</div>
+          <div class="hotel-addr">${hotel.addr}</div>
+        </div>
+        <div class="hotel-arrow">↗</div>
+      </a>
+      <button class="wm-icon-btn" onclick="openHotelEdit()" title="Editar dirección" style="flex-shrink:0;font-size:14px;opacity:0.4">✏️</button>
+    </div>`;
 
   // Editable day label
   if (stopEditingIdx?.dayIdx === d && stopEditingIdx?.stopIdx === 'label') {
@@ -1956,13 +2018,13 @@ function renderDayContent(d) {
             <div class="stop-desc">${s.desc}</div>
             <div class="stop-footer">
               <div class="badges">${badge}</div>
-              <div style="display:flex;align-items:center;gap:5px">
+              <div class="stop-footer-actions">
                 ${s.url ? `<a class="maps-btn" href="${s.url}" onclick="event.stopPropagation()">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
                   Maps
                 </a>` : ''}
-                <button class="wm-icon-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada">✏️</button>
-                <button class="wm-icon-btn wm-icon-del" onclick="stopDelete(${d},${i},event)" title="Eliminar parada">✕</button>
+                <button class="wm-icon-btn stop-action-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada">✏️</button>
+                <button class="wm-icon-btn wm-icon-del stop-action-btn" onclick="stopDelete(${d},${i},event)" title="Eliminar parada">✕</button>
               </div>
             </div>
           </div>
@@ -2274,6 +2336,23 @@ wmLoad();
     <div class="modal-actions">
       <button class="mbtn-ghost" onclick="closeMealModal()">Cancelar</button>
       <button class="mbtn-primary" onclick="addMealDay()">Agregar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="hotelEditModal">
+  <div class="modal-box">
+    <h2>✏️ Editar punto de partida</h2>
+    <div class="mform-group">
+      <label>Dirección</label>
+      <input type="text" id="hotel-edit-addr" placeholder="ej: 324 Newcastle Dr, Kissimmee FL">
+    </div>
+    <div class="mform-group">
+      <label>Link de Google Maps</label>
+      <input type="text" id="hotel-edit-url" placeholder="https://maps.google.com/...">
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn-ghost" onclick="closeHotelEdit()">Cancelar</button>
+      <button class="mbtn-primary" onclick="saveHotelEdit()">Guardar</button>
     </div>
   </div>
 </div>
