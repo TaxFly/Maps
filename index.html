@@ -896,39 +896,149 @@ body {
 .wm-edit-small { text-align: center; }
 .wm-edit-hint { font-size: 10px; color: var(--muted); margin-bottom: 6px; font-style: italic; }
 .wm-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
-/* Walmart add modal category select */
-#wm-add-cat option { background: var(--surface2); }
+/* OUTLETS SUB-TABS */
+.outlets-panel { padding: 0 0 16px; }
+.outlets-subtabs {
+  display: flex;
+  gap: 8px;
+  padding: 14px 0 12px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.outlets-stab {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  text-align: center;
+  letter-spacing: 0.2px;
+}
+.outlets-stab.active {
+  background: var(--accent);
+  color: #0e0e10;
+  border-color: var(--accent);
+}
+.outlets-day-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.outlets-day-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s;
+  line-height: 1.2;
+}
+.outlets-day-tab.active {
+  background: var(--surface2);
+  color: var(--text);
+  border-color: var(--accent);
+}
+.odt-date {
+  font-size: 9px;
+  font-weight: 400;
+  font-family: 'DM Sans', sans-serif;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.outlets-day-tab.active .odt-date { color: var(--accent); }
+.shop-summary-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* DYNAMIC HEADER THEMES */
+.header { transition: border-color .3s; }
+.header-title { transition: color .3s; }
+.header-title .ht-accent { transition: color .3s; }
+
+/* Outlets theme — amarillo (default) */
+body.theme-outlets { --theme-accent: #f5c842; --theme-accent2: #e8834a; }
+body.theme-outlets .header { border-bottom-color: rgba(245,200,66,0.18); }
+body.theme-outlets .header-title .ht-accent { color: #f5c842; }
+body.theme-outlets .tab.active { background: #f5c842; color: #0e0e10; border-color: #f5c842; }
+body.theme-outlets .nav-btn.active { background: #f5c842; color: #0e0e10; border-color: #f5c842; }
+body.theme-outlets .global-counter { color: #f5c842; }
+
+/* Comidas theme — verde cálido */
+body.theme-comidas { --theme-accent: #5ecf8a; --theme-accent2: #3ab56e; }
+body.theme-comidas .header { border-bottom-color: rgba(94,207,138,0.2); }
+body.theme-comidas .header-title .ht-accent { color: #5ecf8a; }
+body.theme-comidas .tab.active { background: #5ecf8a; color: #0e0e10; border-color: #5ecf8a; }
+body.theme-comidas .nav-btn.active { background: #5ecf8a; color: #0e0e10; border-color: #5ecf8a; }
+body.theme-comidas .global-counter { color: #5ecf8a; border-color: rgba(94,207,138,0.25); }
+body.theme-comidas .add-day-fab { background: #5ecf8a; box-shadow: 0 4px 20px rgba(94,207,138,.3); }
+
+/* Walmart theme — azul */
+body.theme-walmart { --theme-accent: #4fa8e8; --theme-accent2: #2e7fc4; }
+body.theme-walmart .header { border-bottom-color: rgba(79,168,232,0.2); }
+body.theme-walmart .header-title .ht-accent { color: #4fa8e8; }
+body.theme-walmart .tab.active { background: #4fa8e8; color: #0e0e10; border-color: #4fa8e8; }
+body.theme-walmart .nav-btn.active { background: #4fa8e8; color: #0e0e10; border-color: #4fa8e8; }
+body.theme-walmart .global-counter { color: #4fa8e8; border-color: rgba(79,168,232,0.25); }
+body.theme-walmart .wm-stat-val { color: #4fa8e8; }
+body.theme-walmart .wm-total-val { color: #4fa8e8; }
+body.theme-walmart .wm-progress-bar-fill { background: linear-gradient(90deg, #4fa8e8, #2e7fc4); }
+body.theme-walmart .wm-item-price { color: #4fa8e8; }
+body.theme-walmart .wm-section-count { background: rgba(79,168,232,0.1); color: #4fa8e8; }
+
+body.theme-comidas .mbtn.msave { border-color: #5ecf8a; color: #5ecf8a; }
+body.theme-comidas .mbtn.msave:hover { background: rgba(94,207,138,.1); }
+body.theme-comidas .meal-cell-text:hover { color: #5ecf8a; }
+body.theme-comidas .snack-chip-add:hover { border-color: #5ecf8a; color: #5ecf8a; }
+body.theme-comidas .snack-field:focus { border-color: #5ecf8a; }
+body.theme-comidas .notes-ta:focus { border-color: #5ecf8a; color: var(--text); }
+body.theme-comidas .mform-group input:focus, body.theme-comidas .mform-group select:focus { border-color: #5ecf8a; }
+body.theme-comidas .mbtn-primary { background: #5ecf8a; }
+body.theme-comidas .outlets-stab.active { background: #5ecf8a; color: #0e0e10; border-color: #5ecf8a; }
 </style>
 </head>
-<body>
+<body class="theme-outlets">
 
 <header class="header">
   <div class="header-top">
     <div>
-      <div class="header-title">Outlets <span>Orlando</span></div>
-      <div class="header-subtitle">324 Newcastle Dr · 25–27 enero</div>
+      <div class="header-title" id="main-title">Outlets <span class="ht-accent">Orlando</span></div>
+      <div class="header-subtitle" id="main-subtitle">324 Newcastle Dr · 25–27 enero</div>
     </div>
     <div class="global-counter" id="global-counter">0 / 32</div>
   </div>
   <div class="tabs">
-    <button class="tab active" onclick="switchDay(0)">Sáb 25/01</button>
-    <button class="tab" onclick="switchDay(1)">Dom 26/01</button>
-    <button class="tab" onclick="switchDay(2)">Lun 27/01</button>
-    <button class="tab" onclick="switchSection('comidas')">🍽️ Comidas</button>
-    <button class="tab" onclick="switchSection('walmart')">🛒 Walmart</button>
+    <button class="tab active" id="maintab-outlets" onclick="switchSection('outlets')">🛍️ Outlets</button>
+    <button class="tab" id="maintab-comidas" onclick="switchSection('comidas')">🍽️ Comidas</button>
+    <button class="tab" id="maintab-walmart" onclick="switchSection('walmart')">🛒 Walmart</button>
   </div>
 </header>
 
-<div id="panel-0" class="panel active"></div>
-<div id="panel-1" class="panel"></div>
-<div id="panel-2" class="panel"></div>
+<div id="panel-outlets" class="panel active"></div>
 <div id="panel-comidas" class="panel"></div>
 <div id="panel-walmart" class="panel"></div>
 
 <nav class="bottom-nav">
-  <button class="nav-btn active" id="nav-0" onclick="switchDay(0)">Día 1<span class="nav-date">Sáb 25/01</span></button>
-  <button class="nav-btn" id="nav-1" onclick="switchDay(1)">Día 2<span class="nav-date">Dom 26/01</span></button>
-  <button class="nav-btn" id="nav-2" onclick="switchDay(2)">Día 3<span class="nav-date">Lun 27/01</span></button>
+  <button class="nav-btn active" id="nav-outlets" onclick="switchSection('outlets')">🛍️<span class="nav-date">Outlets</span></button>
   <button class="nav-btn" id="nav-comidas" onclick="switchSection('comidas')">🍽️<span class="nav-date">Comidas</span></button>
   <button class="nav-btn" id="nav-walmart" onclick="switchSection('walmart')">🛒<span class="nav-date">Walmart</span></button>
 </nav>
@@ -940,6 +1050,24 @@ const HOTEL = {
   addr: "324 Newcastle Dr, Kissimmee FL 34746",
   url: "https://www.google.com/maps/search/?api=1&query=28.3223251,-81.4939467"
 };
+
+// ─── OUTLETS STATE (declared early to avoid TDZ errors) ───
+let outletSubTab = 'cronograma';
+let currentOutletDay = 0;
+const SHOPPING_KEY = 'outlets-shopping-list';
+const shopCats = [
+  { id:'remeras',       icon:'👕', title:'Remeras / T-Shirts' },
+  { id:'pantalones',    icon:'👖', title:'Pantalones / Jeans' },
+  { id:'ropa-deportiva',icon:'🏃', title:'Ropa Deportiva' },
+  { id:'calzado',       icon:'👟', title:'Calzado / Zapatillas' },
+  { id:'accesorios',    icon:'🎒', title:'Accesorios / Bolsos' },
+  { id:'varios',        icon:'🛍️', title:'Varios' },
+];
+let shopItems = [];
+let shopChecked = new Set();
+let shopEditingItem = null;
+let shopOpenSections = new Set(['remeras','calzado']);
+let shopListTab = 'need'; // 'need' | 'noneed'
 
 const days = [
   {
@@ -1022,18 +1150,6 @@ function updateGlobal() {
   const done = totalDone();
   const all = totalAll();
   document.getElementById('global-counter').textContent = done + ' / ' + all;
-  days.forEach((_, i) => {
-    const nav = document.getElementById('nav-' + i);
-    const d = days[i];
-    const hasProgress = visited[i].size > 0 && visited[i].size < d.stops.length;
-    const allDone = visited[i].size === d.stops.length;
-    let dot = '';
-    if (hasProgress) dot = '<span class="nav-check"></span>';
-    if (allDone) dot = ' ✓';
-    const labels = ['Día 1', 'Día 2', 'Día 3'];
-    const dates = ['Sáb 25/01', 'Dom 26/01', 'Lun 27/01'];
-    nav.innerHTML = labels[i] + dot + '<span class="nav-date">' + dates[i] + '</span>';
-  });
 }
 
 function launchConfetti() {
@@ -1068,89 +1184,26 @@ function toggleStop(dayIdx, stopIdx) {
     }
   }
   saveState();
-  renderDay(dayIdx);
+  renderOutlets();
   updateGlobal();
 }
 
 function resetDay(d) {
   visited[d].clear();
   saveState();
-  renderDay(d);
+  renderOutlets();
   updateGlobal();
 }
 
 function switchDay(d) {
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===d));
-  document.querySelectorAll('.panel').forEach((p,i) => p.classList.toggle('active', i===d));
-  document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active', i===d));
+  // internal: switch within outlets sub-tabs
+  document.querySelectorAll('.outlets-day-tab').forEach((t,i) => t.classList.toggle('active', i===d));
+  document.querySelectorAll('.outlets-day-panel').forEach((p,i) => p.classList.toggle('active', i===d));
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
-function renderDay(d) {
-  const day = days[d];
-  const total = day.stops.length;
-  const done = visited[d].size;
-  const pct = Math.round(done / total * 100);
-  const allDone = done === total;
-
-  let html = `
-    <a class="hotel-bar" href="${HOTEL.url}">
-      <div class="hotel-icon">🏠</div>
-      <div class="hotel-info">
-        <div class="hotel-label">Punto de partida</div>
-        <div class="hotel-addr">${HOTEL.addr}</div>
-      </div>
-      <div class="hotel-arrow">↗</div>
-    </a>
-    <div class="day-label">${day.label}</div>
-    <div class="progress-wrap">
-      <div class="progress-meta">
-        <div class="progress-stats">
-          <div class="stat"><div class="stat-val ${done>0?'accent':''}">${done}</div><div class="stat-lbl">visitadas</div></div>
-          <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">paradas</div></div>
-          <div class="stat"><div class="stat-val ${pct===100?'accent':''}">${pct}%</div><div class="stat-lbl">completado</div></div>
-        </div>
-        <button class="reset-btn" onclick="resetDay(${d})">↺ reiniciar</button>
-      </div>
-      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-    </div>
-  `;
-
-  if (allDone && total > 0) {
-    html += `<div class="all-done" style="display:block">
-      <div class="all-done-emoji">🛍️</div>
-      <div class="all-done-title">¡Día completado!</div>
-      <div class="all-done-sub">Visitaste las ${total} paradas del día.</div>
-    </div>`;
-  }
-
-  day.stops.forEach((s, i) => {
-    const isV = visited[d].has(i);
-    let badge = '';
-    if (s.badge === 'star') badge = `<span class="badge badge-star">${s.badgeText}</span>`;
-    if (s.badge === 'rec')  badge = `<span class="badge badge-rec">${s.badgeText}</span>`;
-    html += `
-      <div class="stop-card${isV?' visited':''}" onclick="toggleStop(${d},${i})" style="animation-delay:${i*0.04}s">
-        <div class="stop-num">${isV ? '✓' : i+1}</div>
-        <div class="stop-body">
-          <div class="stop-name">${s.name}</div>
-          <div class="stop-desc">${s.desc}</div>
-          <div class="stop-footer">
-            <div class="badges">${badge}</div>
-            <a class="maps-btn" href="${s.url}" onclick="event.stopPropagation()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-              Maps
-            </a>
-          </div>
-        </div>
-      </div>`;
-  });
-
-  document.getElementById('panel-' + d).innerHTML = html;
-}
-
 loadState();
-days.forEach((_, i) => renderDay(i));
+renderOutlets();
 updateGlobal();
 
 // ─── COMIDAS ───────────────────────────────────────────────
@@ -1680,7 +1733,28 @@ function renderWalmart() {
   panel.innerHTML = html;
 }
 
-// Update switchSection to handle walmart too
+// Update switchSection to handle 3 main sections
+const sectionMeta = {
+  outlets: {
+    title: 'Outlets',
+    accent: 'Orlando',
+    subtitle: '324 Newcastle Dr · 25–27 enero',
+    theme: 'theme-outlets'
+  },
+  comidas: {
+    title: 'Orlando',
+    accent: 'Meal Planning',
+    subtitle: '🍽️ Planificación de comidas · 17–28 enero',
+    theme: 'theme-comidas'
+  },
+  walmart: {
+    title: 'Orlando',
+    accent: 'Walmart Run',
+    subtitle: '🛒 Lista de compras · Walmart Supercenter',
+    theme: 'theme-walmart'
+  }
+};
+
 function switchSection(section) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -1688,17 +1762,320 @@ function switchSection(section) {
 
   document.getElementById('panel-' + section).classList.add('active');
   document.getElementById('nav-' + section).classList.add('active');
+  document.getElementById('maintab-' + section).classList.add('active');
 
-  const tabs = document.querySelectorAll('.tab');
-  if (section === 'comidas') tabs[tabs.length - 2].classList.add('active');
-  if (section === 'walmart') tabs[tabs.length - 1].classList.add('active');
+  // Update header title & theme
+  const meta = sectionMeta[section];
+  document.getElementById('main-title').innerHTML = meta.title + ' <span class="ht-accent">' + meta.accent + '</span>';
+  document.getElementById('main-subtitle').textContent = meta.subtitle;
+  document.body.className = meta.theme;
 
   document.getElementById('addDayFab').style.display = section === 'comidas' ? 'block' : 'none';
 
   if (section === 'comidas') renderComidas();
   if (section === 'walmart') renderWalmart();
+  if (section === 'outlets') renderOutlets();
 
   window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ─── OUTLETS ───────────────────────────────────────────────
+
+function shopSave() {
+  try { localStorage.setItem(SHOPPING_KEY, JSON.stringify({ items: shopItems, checked: [...shopChecked] })); } catch(e) {}
+}
+function shopLoad() {
+  try {
+    const raw = localStorage.getItem(SHOPPING_KEY);
+    if (!raw) { shopItems = getDefaultShopItems(); return; }
+    const d = JSON.parse(raw);
+    shopItems = d.items || getDefaultShopItems();
+    shopChecked = new Set(d.checked || []);
+  } catch(e) { shopItems = getDefaultShopItems(); }
+}
+function getDefaultShopItems() {
+  return [
+    { id:'si1', catId:'remeras', name:'Remeras básicas (pack)', size:'M', store:'Ross / Burlington', priority:'alta', needIt:true },
+    { id:'si2', catId:'remeras', name:'Remera Nike Dri-FIT', size:'M', store:'Nike Clearance', priority:'alta', needIt:true },
+    { id:'si3', catId:'pantalones', name:'Jean Levi\'s slim', size:'32x30', store:'Vineland Outlets', priority:'media', needIt:true },
+    { id:'si4', catId:'ropa-deportiva', name:'Short deportivo', size:'M', store:'Nike / Ross', priority:'media', needIt:true },
+    { id:'si5', catId:'calzado', name:'Zapatillas running Nike', size:'42', store:'Nike Clearance', priority:'alta', needIt:true },
+    { id:'si6', catId:'accesorios', name:'Mochila / Backpack', size:'—', store:'Ross / Burlington', priority:'media', needIt:true },
+    { id:'si7', catId:'varios', name:'Medias (pack)', size:'único', store:'Five Below', priority:'baja', needIt:true },
+  ];
+}
+
+function shopGetItem(id) { return shopItems.find(i => i.id === id); }
+
+function renderOutlets() {
+  shopLoad();
+  const panel = document.getElementById('panel-outlets');
+  const dayLabels = ['Sáb 25/01','Dom 26/01','Lun 27/01'];
+  const dayNames = ['Día 1','Día 2','Día 3'];
+
+  let html = `<div class="outlets-panel">
+    <div class="outlets-subtabs">
+      <button class="outlets-stab${outletSubTab==='cronograma'?' active':''}" onclick="switchOutletTab('cronograma')">📅 Cronograma</button>
+      <button class="outlets-stab${outletSubTab==='lista'?' active':''}" onclick="switchOutletTab('lista')">👕 Lista de Compras</button>
+    </div>`;
+
+  if (outletSubTab === 'cronograma') {
+    // Day sub-tabs
+    const currentDay = typeof currentOutletDay !== 'undefined' ? currentOutletDay : 0;
+    html += `<div class="outlets-day-tabs">
+      ${dayNames.map((n,i) => `<button class="outlets-day-tab${i===currentDay?' active':''}" onclick="switchOutletDay(${i})">${n}<span class="odt-date">${dayLabels[i]}</span></button>`).join('')}
+    </div>`;
+    html += `<div class="outlets-day-content">`;
+    html += renderDayContent(currentDay);
+    html += `</div>`;
+  } else {
+    // Shopping list
+    html += renderShopList();
+  }
+
+  html += `</div>`;
+  panel.innerHTML = html;
+}
+
+
+function switchOutletTab(tab) {
+  outletSubTab = tab;
+  renderOutlets();
+}
+
+function switchOutletDay(d) {
+  currentOutletDay = d;
+  renderOutlets();
+}
+
+function renderDayContent(d) {
+  const day = days[d];
+  const total = day.stops.length;
+  const done = visited[d].size;
+  const pct = Math.round(done / total * 100);
+  const allDone = done === total;
+
+  let html = `
+    <a class="hotel-bar" href="${HOTEL.url}">
+      <div class="hotel-icon">🏠</div>
+      <div class="hotel-info">
+        <div class="hotel-label">Punto de partida</div>
+        <div class="hotel-addr">${HOTEL.addr}</div>
+      </div>
+      <div class="hotel-arrow">↗</div>
+    </a>
+    <div class="day-label">${day.label}</div>
+    <div class="progress-wrap">
+      <div class="progress-meta">
+        <div class="progress-stats">
+          <div class="stat"><div class="stat-val ${done>0?'accent':''}">${done}</div><div class="stat-lbl">visitadas</div></div>
+          <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">paradas</div></div>
+          <div class="stat"><div class="stat-val ${pct===100?'accent':''}">${pct}%</div><div class="stat-lbl">completado</div></div>
+        </div>
+        <button class="reset-btn" onclick="resetDay(${d})">↺ reiniciar</button>
+      </div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+
+  if (allDone && total > 0) {
+    html += `<div class="all-done" style="display:block">
+      <div class="all-done-emoji">🛍️</div>
+      <div class="all-done-title">¡Día completado!</div>
+      <div class="all-done-sub">Visitaste las ${total} paradas del día.</div>
+    </div>`;
+  }
+
+  day.stops.forEach((s, i) => {
+    const isV = visited[d].has(i);
+    let badge = '';
+    if (s.badge === 'star') badge = `<span class="badge badge-star">${s.badgeText}</span>`;
+    if (s.badge === 'rec')  badge = `<span class="badge badge-rec">${s.badgeText}</span>`;
+    html += `
+      <div class="stop-card${isV?' visited':''}" onclick="toggleStop(${d},${i})" style="animation-delay:${i*0.04}s">
+        <div class="stop-num">${isV ? '✓' : i+1}</div>
+        <div class="stop-body">
+          <div class="stop-name">${s.name}</div>
+          <div class="stop-desc">${s.desc}</div>
+          <div class="stop-footer">
+            <div class="badges">${badge}</div>
+            <a class="maps-btn" href="${s.url}" onclick="event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+              Maps
+            </a>
+          </div>
+        </div>
+      </div>`;
+  });
+  return html;
+}
+
+function renderShopList() {
+  const prioColor = { alta:'#e05c5c', media:'var(--accent)', baja:'var(--green)' };
+  const isNeed = shopListTab === 'need';
+  const filtered = shopItems.filter(i => isNeed ? i.needIt !== false : i.needIt === false);
+
+  let html = `
+  <div style="display:flex;gap:6px;margin-bottom:14px">
+    <button onclick="shopListTab='need';renderOutlets()" style="flex:1;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${isNeed?'var(--accent)':'var(--border2)'};background:${isNeed?'var(--accent)':'transparent'};color:${isNeed?'#0e0e10':'var(--muted)'};font-family:'Syne',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✅ A comprar</button>
+    <button onclick="shopListTab='noneed';renderOutlets()" style="flex:1;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${!isNeed?'#e05c5c':'var(--border2)'};background:${!isNeed?'rgba(224,92,92,0.12)':'transparent'};color:${!isNeed?'#e05c5c':'var(--muted)'};font-family:'Syne',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">🚫 No necesito</button>
+  </div>`;
+
+  shopCats.forEach(cat => {
+    const catItems = filtered.filter(i => i.catId === cat.id);
+    if (catItems.length === 0) return;
+    const catDone = catItems.filter(i => shopChecked.has(i.id)).length;
+    const isOpen = shopOpenSections.has(cat.id);
+
+    html += `<div class="wm-section${isOpen?' open':''}" id="shopsec-${cat.id}">
+      <div class="wm-section-header" onclick="shopToggleSection('${cat.id}')">
+        <span class="wm-section-icon">${cat.icon}</span>
+        <span class="wm-section-title">${cat.title}</span>
+        <span class="wm-section-count">${catDone}/${catItems.length}</span>
+        <span class="wm-section-chevron">▾</span>
+      </div>
+      <div class="wm-items">`;
+
+    catItems.forEach(item => {
+      const isChecked = shopChecked.has(item.id);
+      const isEditingThis = shopEditingItem === item.id;
+      const pColor = prioColor[item.priority] || 'var(--muted)';
+      const moveLabel = isNeed ? '🚫' : '✅';
+      const moveTitle = isNeed ? 'Mover a No necesito' : 'Mover a A comprar';
+
+      if (isEditingThis) {
+        html += `<div class="wm-item wm-item-editing" onclick="event.stopPropagation()">
+          <div class="wm-edit-form">
+            <input class="wm-edit-input" id="shop-edit-name" placeholder="Qué querés comprar" value="${item.name.replace(/"/g,'&quot;')}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+              <input class="wm-edit-input" id="shop-edit-size" placeholder="Talle (M, 42, 32x30…)" value="${(item.size||'').replace(/"/g,'&quot;')}">
+              <input class="wm-edit-input" id="shop-edit-store" placeholder="Tienda sugerida" value="${(item.store||'').replace(/"/g,'&quot;')}">
+            </div>
+            <select class="wm-edit-input" id="shop-edit-prio" style="margin-bottom:6px">
+              <option value="alta"${item.priority==='alta'?' selected':''}>🔴 Alta prioridad</option>
+              <option value="media"${item.priority==='media'?' selected':''}>🟡 Media prioridad</option>
+              <option value="baja"${item.priority==='baja'?' selected':''}>🟢 Baja prioridad</option>
+            </select>
+            <div class="wm-edit-actions">
+              <button class="mbtn" onclick="shopCancelEdit()">Cancelar</button>
+              <button class="mbtn msave" onclick="shopSaveEdit('${item.id}')">Guardar</button>
+            </div>
+          </div>
+        </div>`;
+      } else {
+        html += `<div class="wm-item${isChecked?' checked':''}" onclick="shopToggle('${item.id}',event)">
+          <div class="wm-check">${isChecked?'✓':''}</div>
+          <div class="wm-item-body">
+            <div class="wm-item-name">${item.name}</div>
+            <div class="wm-item-detail">${item.size ? 'Talle: '+item.size : ''} ${item.store ? '· '+item.store : ''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span style="width:8px;height:8px;border-radius:50%;background:${pColor};display:inline-block;flex-shrink:0" title="Prioridad ${item.priority}"></span>
+            <button class="wm-icon-btn" onclick="shopMoveItem('${item.id}',event)" title="${moveTitle}">${moveLabel}</button>
+            <button class="wm-icon-btn" onclick="shopStartEdit('${item.id}',event)">✏️</button>
+            <button class="wm-icon-btn wm-icon-del" onclick="shopDeleteItem('${item.id}',event)">✕</button>
+          </div>
+        </div>`;
+      }
+    });
+
+    html += `</div></div>`;
+  });
+
+  if (filtered.length === 0) {
+    html += `<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
+      ${isNeed ? 'No hay prendas en la lista. Agregá una con el botón de abajo.' : 'Nada descartado todavía. Usá el 🚫 para mover ítems acá.'}
+    </div>`;
+  }
+
+  html += `<div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
+    ${isNeed ? `<button class="wm-reset-btn" onclick="shopOpenAddModal()">+ Agregar prenda</button>` : ''}
+    <button class="wm-reset-btn" onclick="shopReset()">↺ Reiniciar checks</button>
+  </div>`;
+
+  return html;
+}
+
+function shopToggleSection(catId) {
+  if (shopOpenSections.has(catId)) shopOpenSections.delete(catId);
+  else shopOpenSections.add(catId);
+  renderOutlets();
+}
+function shopMoveItem(id, e) {
+  e && e.stopPropagation();
+  const item = shopGetItem(id);
+  if (!item) return;
+  item.needIt = item.needIt === false ? true : false;
+  shopSave();
+  showMToast(item.needIt ? 'Movido a A comprar ✓' : 'Movido a No necesito ✓');
+  renderOutlets();
+}
+function shopToggle(id, e) {
+  e && e.stopPropagation();
+  if (shopChecked.has(id)) shopChecked.delete(id);
+  else shopChecked.add(id);
+  shopSave();
+  renderOutlets();
+}
+function shopStartEdit(id, e) {
+  e && e.stopPropagation();
+  shopEditingItem = id;
+  const item = shopGetItem(id);
+  if (item) shopOpenSections.add(item.catId);
+  renderOutlets();
+}
+function shopCancelEdit() { shopEditingItem = null; renderOutlets(); }
+function shopSaveEdit(id) {
+  const item = shopGetItem(id);
+  if (!item) return;
+  const name = document.getElementById('shop-edit-name').value.trim();
+  if (!name) return;
+  item.name = name;
+  item.size = document.getElementById('shop-edit-size').value.trim();
+  item.store = document.getElementById('shop-edit-store').value.trim();
+  item.priority = document.getElementById('shop-edit-prio').value;
+  shopEditingItem = null;
+  shopSave();
+  renderOutlets();
+  showMToast('Guardado ✓');
+}
+function shopDeleteItem(id, e) {
+  e && e.stopPropagation();
+  if (!confirm('¿Eliminar este ítem?')) return;
+  shopItems = shopItems.filter(i => i.id !== id);
+  shopChecked.delete(id);
+  shopSave();
+  renderOutlets();
+}
+function shopReset() {
+  if (!confirm('¿Reiniciar todos los checks de compras?')) return;
+  shopChecked.clear();
+  shopSave();
+  renderOutlets();
+}
+function shopOpenAddModal() {
+  document.getElementById('shopAddModal').classList.add('open');
+  setTimeout(() => document.getElementById('shop-add-name')?.focus(), 50);
+}
+function shopCloseAddModal() {
+  document.getElementById('shopAddModal').classList.remove('open');
+  ['shop-add-name','shop-add-size','shop-add-store'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+}
+function shopAddItem() {
+  const name = document.getElementById('shop-add-name').value.trim();
+  const catId = document.getElementById('shop-add-cat').value;
+  const size = document.getElementById('shop-add-size').value.trim();
+  const store = document.getElementById('shop-add-store').value.trim();
+  const priority = document.getElementById('shop-add-prio').value;
+  if (!name) { alert('Escribí el nombre'); return; }
+  const newItem = { id:'shop-'+Date.now(), catId, name, size, store, priority, needIt: true };
+  shopItems.push(newItem);
+  shopOpenSections.add(catId);
+  shopSave();
+  renderOutlets();
+  shopCloseAddModal();
+  showMToast('Prenda agregada ✓');
 }
 
 wmLoad();
@@ -1764,6 +2141,46 @@ wmLoad();
     <div class="modal-actions">
       <button class="mbtn-ghost" onclick="wmCloseAddModal()">Cancelar</button>
       <button class="mbtn-primary" onclick="wmAddItem()">Agregar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="shopAddModal">
+  <div class="modal-box">
+    <h2>Agregar prenda / accesorio</h2>
+    <div class="mform-group">
+      <label>¿Qué querés comprar?</label>
+      <input type="text" id="shop-add-name" placeholder="ej: Zapatillas Nike Air Max">
+    </div>
+    <div class="mform-group">
+      <label>Categoría</label>
+      <select id="shop-add-cat">
+        <option value="remeras">👕 Remeras / T-Shirts</option>
+        <option value="pantalones">👖 Pantalones / Jeans</option>
+        <option value="ropa-deportiva">🏃 Ropa Deportiva</option>
+        <option value="calzado">👟 Calzado / Zapatillas</option>
+        <option value="accesorios">🎒 Accesorios / Bolsos</option>
+        <option value="varios">🛍️ Varios</option>
+      </select>
+    </div>
+    <div class="mform-group">
+      <label>Talle</label>
+      <input type="text" id="shop-add-size" placeholder="ej: M, 42, 32x30, único…">
+    </div>
+    <div class="mform-group">
+      <label>Tienda sugerida</label>
+      <input type="text" id="shop-add-store" placeholder="ej: Nike Clearance, Ross, Vineland…">
+    </div>
+    <div class="mform-group">
+      <label>Prioridad</label>
+      <select id="shop-add-prio">
+        <option value="alta">🔴 Alta</option>
+        <option value="media" selected>🟡 Media</option>
+        <option value="baja">🟢 Baja</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn-ghost" onclick="shopCloseAddModal()">Cancelar</button>
+      <button class="mbtn-primary" onclick="shopAddItem()">Agregar</button>
     </div>
   </div>
 </div>
