@@ -1121,12 +1121,16 @@ const days = [
 ];
 
 const STORAGE_KEY = 'outlets-orlando-visited';
+const DAYS_KEY = 'outlets-orlando-days-v1';
 const visited = [new Set(), new Set(), new Set()];
+let stopEditingIdx = null; // { dayIdx, stopIdx } or null
+let stopAddingDay = null;  // dayIdx or null
 
 function saveState() {
   try {
     const data = visited.map(s => [...s]);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(DAYS_KEY, JSON.stringify(days));
   } catch(e) {}
 }
 
@@ -1136,6 +1140,17 @@ function loadState() {
     if (!raw) return;
     const data = JSON.parse(raw);
     data.forEach((arr, i) => arr.forEach(v => visited[i].add(v)));
+  } catch(e) {}
+  try {
+    const rawDays = localStorage.getItem(DAYS_KEY);
+    if (rawDays) {
+      const savedDays = JSON.parse(rawDays);
+      if (savedDays.length >= days.length) {
+        savedDays.forEach((d, i) => { if (i < days.length) days[i] = d; else days.push(d); });
+        // Extend visited array if days were added
+        while (visited.length < days.length) visited.push(new Set());
+      }
+    }
   } catch(e) {}
 }
 
@@ -1852,8 +1867,8 @@ function renderDayContent(d) {
   const day = days[d];
   const total = day.stops.length;
   const done = visited[d].size;
-  const pct = Math.round(done / total * 100);
-  const allDone = done === total;
+  const pct = total > 0 ? Math.round(done / total * 100) : 0;
+  const allDone = done === total && total > 0;
 
   let html = `
     <a class="hotel-bar" href="${HOTEL.url}">
@@ -1863,9 +1878,25 @@ function renderDayContent(d) {
         <div class="hotel-addr">${HOTEL.addr}</div>
       </div>
       <div class="hotel-arrow">↗</div>
-    </a>
-    <div class="day-label">${day.label}</div>
-    <div class="progress-wrap">
+    </a>`;
+
+  // Editable day label
+  if (stopEditingIdx?.dayIdx === d && stopEditingIdx?.stopIdx === 'label') {
+    html += `<div style="margin-bottom:14px">
+      <input id="stop-edit-label" class="wm-edit-input" style="width:100%;margin-bottom:6px" value="${day.label.replace(/"/g,'&quot;')}">
+      <div style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="mbtn" onclick="stopCancelEdit()">Cancelar</button>
+        <button class="mbtn msave" onclick="stopSaveDayLabel(${d})">Guardar</button>
+      </div>
+    </div>`;
+  } else {
+    html += `<div class="day-label" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <span style="flex:1">${day.label}</span>
+      <button class="wm-icon-btn" onclick="stopStartEditLabel(${d});event.stopPropagation()" title="Editar descripción del día" style="flex-shrink:0">✏️</button>
+    </div>`;
+  }
+
+  html += `<div class="progress-wrap">
       <div class="progress-meta">
         <div class="progress-stats">
           <div class="stat"><div class="stat-val ${done>0?'accent':''}">${done}</div><div class="stat-lbl">visitadas</div></div>
@@ -1877,7 +1908,7 @@ function renderDayContent(d) {
       <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
     </div>`;
 
-  if (allDone && total > 0) {
+  if (allDone) {
     html += `<div class="all-done" style="display:block">
       <div class="all-done-emoji">🛍️</div>
       <div class="all-done-title">¡Día completado!</div>
@@ -1887,26 +1918,167 @@ function renderDayContent(d) {
 
   day.stops.forEach((s, i) => {
     const isV = visited[d].has(i);
-    let badge = '';
-    if (s.badge === 'star') badge = `<span class="badge badge-star">${s.badgeText}</span>`;
-    if (s.badge === 'rec')  badge = `<span class="badge badge-rec">${s.badgeText}</span>`;
+    const isEditingThis = stopEditingIdx?.dayIdx === d && stopEditingIdx?.stopIdx === i;
+
+    if (isEditingThis) {
+      const badgeVal = s.badge || '';
+      const badgeText = (s.badgeText || '').replace(/"/g,'&quot;');
+      html += `
+        <div class="stop-card" onclick="event.stopPropagation()" style="cursor:default;flex-direction:column;align-items:stretch">
+          <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--accent)">✏️ Editar parada</div>
+          <div class="wm-edit-form" style="width:100%">
+            <input class="wm-edit-input" id="stop-edit-name" placeholder="Nombre del lugar" value="${s.name.replace(/"/g,'&quot;')}" style="margin-bottom:6px;width:100%">
+            <textarea class="wm-edit-input" id="stop-edit-desc" placeholder="Descripción (horarios, tips…)" style="margin-bottom:6px;width:100%;min-height:56px;resize:vertical;font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.4">${s.desc}</textarea>
+            <input class="wm-edit-input" id="stop-edit-url" placeholder="URL de Google Maps" value="${(s.url||'').replace(/"/g,'&quot;')}" style="margin-bottom:6px;width:100%">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+              <select class="wm-edit-input" id="stop-edit-badge">
+                <option value=""${badgeVal===''?' selected':''}>Sin badge</option>
+                <option value="star"${badgeVal==='star'?' selected':''}>⭐ Imperdible</option>
+                <option value="rec"${badgeVal==='rec'?' selected':''}>✅ Recomendado</option>
+              </select>
+              <input class="wm-edit-input" id="stop-edit-badgetext" placeholder="Texto badge (ej: N°1)" value="${badgeText}">
+            </div>
+            <div class="wm-edit-actions">
+              <button class="mbtn" onclick="stopCancelEdit()">Cancelar</button>
+              <button class="mbtn msave" onclick="stopSaveEdit(${d},${i})">Guardar</button>
+            </div>
+          </div>
+        </div>`;
+    } else {
+      let badge = '';
+      if (s.badge === 'star') badge = `<span class="badge badge-star">${s.badgeText}</span>`;
+      if (s.badge === 'rec')  badge = `<span class="badge badge-rec">${s.badgeText}</span>`;
+      html += `
+        <div class="stop-card${isV?' visited':''}" onclick="toggleStop(${d},${i})" style="animation-delay:${i*0.04}s">
+          <div class="stop-num">${isV ? '✓' : i+1}</div>
+          <div class="stop-body">
+            <div class="stop-name">${s.name}</div>
+            <div class="stop-desc">${s.desc}</div>
+            <div class="stop-footer">
+              <div class="badges">${badge}</div>
+              <div style="display:flex;align-items:center;gap:5px">
+                ${s.url ? `<a class="maps-btn" href="${s.url}" onclick="event.stopPropagation()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                  Maps
+                </a>` : ''}
+                <button class="wm-icon-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada">✏️</button>
+                <button class="wm-icon-btn wm-icon-del" onclick="stopDelete(${d},${i},event)" title="Eliminar parada">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+  });
+
+  // Add stop form or button
+  if (stopAddingDay === d) {
     html += `
-      <div class="stop-card${isV?' visited':''}" onclick="toggleStop(${d},${i})" style="animation-delay:${i*0.04}s">
-        <div class="stop-num">${isV ? '✓' : i+1}</div>
-        <div class="stop-body">
-          <div class="stop-name">${s.name}</div>
-          <div class="stop-desc">${s.desc}</div>
-          <div class="stop-footer">
-            <div class="badges">${badge}</div>
-            <a class="maps-btn" href="${s.url}" onclick="event.stopPropagation()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-              Maps
-            </a>
+      <div class="stop-card" onclick="event.stopPropagation()" style="cursor:default;flex-direction:column;align-items:stretch">
+        <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--green)">+ Nueva parada</div>
+        <div class="wm-edit-form" style="width:100%">
+          <input class="wm-edit-input" id="stop-add-name" placeholder="Nombre del lugar" style="margin-bottom:6px;width:100%">
+          <textarea class="wm-edit-input" id="stop-add-desc" placeholder="Descripción (horarios, tips…)" style="margin-bottom:6px;width:100%;min-height:56px;resize:vertical;font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.4"></textarea>
+          <input class="wm-edit-input" id="stop-add-url" placeholder="URL de Google Maps (opcional)" style="margin-bottom:6px;width:100%">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+            <select class="wm-edit-input" id="stop-add-badge">
+              <option value="">Sin badge</option>
+              <option value="star">⭐ Imperdible</option>
+              <option value="rec">✅ Recomendado</option>
+            </select>
+            <input class="wm-edit-input" id="stop-add-badgetext" placeholder="Texto badge (ej: N°1)">
+          </div>
+          <div class="wm-edit-actions">
+            <button class="mbtn" onclick="stopCancelAdd()">Cancelar</button>
+            <button class="mbtn msave" onclick="stopAddConfirm(${d})">Agregar</button>
           </div>
         </div>
       </div>`;
-  });
+  } else {
+    html += `<button onclick="stopStartAdd(${d})" style="width:100%;padding:12px;border:1px dashed var(--border2);border-radius:var(--radius);background:transparent;color:var(--muted);font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:2px" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">+ Agregar parada</button>`;
+  }
+
   return html;
+}
+
+// ─── STOP EDIT HELPERS ─────────────────────────────────────
+function stopStartEdit(dayIdx, stopIdx) {
+  stopEditingIdx = { dayIdx, stopIdx };
+  stopAddingDay = null;
+  renderOutlets();
+  setTimeout(() => document.getElementById('stop-edit-name')?.focus(), 50);
+}
+function stopStartEditLabel(dayIdx) {
+  stopEditingIdx = { dayIdx, stopIdx: 'label' };
+  stopAddingDay = null;
+  renderOutlets();
+  setTimeout(() => document.getElementById('stop-edit-label')?.focus(), 50);
+}
+function stopCancelEdit() {
+  stopEditingIdx = null;
+  renderOutlets();
+}
+function stopSaveEdit(dayIdx, stopIdx) {
+  const name = document.getElementById('stop-edit-name').value.trim();
+  if (!name) { alert('El nombre no puede estar vacío'); return; }
+  days[dayIdx].stops[stopIdx] = {
+    name,
+    desc: document.getElementById('stop-edit-desc').value.trim(),
+    url: document.getElementById('stop-edit-url').value.trim(),
+    badge: document.getElementById('stop-edit-badge').value || undefined,
+    badgeText: document.getElementById('stop-edit-badgetext').value.trim() || undefined,
+  };
+  stopEditingIdx = null;
+  saveState();
+  renderOutlets();
+  showMToast('Parada guardada ✓');
+}
+function stopSaveDayLabel(dayIdx) {
+  const label = document.getElementById('stop-edit-label').value.trim();
+  if (!label) return;
+  days[dayIdx].label = label;
+  stopEditingIdx = null;
+  saveState();
+  renderOutlets();
+  showMToast('Descripción guardada ✓');
+}
+function stopDelete(dayIdx, stopIdx, e) {
+  e && e.stopPropagation();
+  if (!confirm('¿Eliminar esta parada?')) return;
+  days[dayIdx].stops.splice(stopIdx, 1);
+  // Rebuild visited set for this day to avoid index gaps
+  const newVisited = new Set();
+  [...visited[dayIdx]].forEach(idx => { if (idx < stopIdx) newVisited.add(idx); else if (idx > stopIdx) newVisited.add(idx - 1); });
+  visited[dayIdx] = newVisited;
+  saveState();
+  renderOutlets();
+  updateGlobal();
+  showMToast('Parada eliminada');
+}
+function stopStartAdd(dayIdx) {
+  stopAddingDay = dayIdx;
+  stopEditingIdx = null;
+  renderOutlets();
+  setTimeout(() => document.getElementById('stop-add-name')?.focus(), 50);
+}
+function stopCancelAdd() {
+  stopAddingDay = null;
+  renderOutlets();
+}
+function stopAddConfirm(dayIdx) {
+  const name = document.getElementById('stop-add-name').value.trim();
+  if (!name) { alert('Escribí el nombre del lugar'); return; }
+  days[dayIdx].stops.push({
+    name,
+    desc: document.getElementById('stop-add-desc').value.trim(),
+    url: document.getElementById('stop-add-url').value.trim(),
+    badge: document.getElementById('stop-add-badge').value || undefined,
+    badgeText: document.getElementById('stop-add-badgetext').value.trim() || undefined,
+  });
+  stopAddingDay = null;
+  saveState();
+  renderOutlets();
+  updateGlobal();
+  showMToast('Parada agregada ✓');
 }
 
 function renderShopList() {
