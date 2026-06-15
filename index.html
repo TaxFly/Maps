@@ -102,10 +102,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
   fbListen('days', data => {
     if (data && data.days && window.days) {
-      data.days.forEach((d, i) => { if (i < window.days.length) window.days[i] = d; else window.days.push(d); });
-      while (window.visited.length < window.days.length) window.visited.push(new Set());
-      window.renderOutlets && window.renderOutlets();
-      window.updateGlobal && window.updateGlobal();
+      const fbVersion = data.v || 1;
+      if (fbVersion >= DAYS_VERSION) {
+        data.days.forEach((d, i) => { if (i < window.days.length) window.days[i] = d; else window.days.push(d); });
+        while (window.visited.length < window.days.length) window.visited.push(new Set());
+        window.renderOutlets && window.renderOutlets();
+        window.updateGlobal && window.updateGlobal();
+      }
     }
   });
   fbListen('meals', data => {
@@ -1313,6 +1316,9 @@ let shopEditingItem = null;
 let shopOpenSections = new Set(['remeras','calzado']);
 let shopListTab = 'need'; // 'need' | 'noneed'
 
+// Incrementar este número cada vez que se corrijan coordenadas o paradas
+const DAYS_VERSION = 2;
+
 const days = [
   {
     label: "Zona Kissimmee Este — The Loop & Osceola Pkwy.",
@@ -1364,7 +1370,7 @@ function saveState() {
     localStorage.setItem(DAYS_KEY, JSON.stringify(days));
   } catch(e) {}
   window._fb && window._fb.fbSet('visited', { visited: visited.map(s => [...s]) });
-  window._fb && window._fb.fbSet('days', { days: days });
+  window._fb && window._fb.fbSet('days', { days: days, v: DAYS_VERSION });
 }
 
 function loadState() {
@@ -1377,8 +1383,20 @@ function loadState() {
     } catch(e) {}
   }
   if (window._daysFromFb) {
-    window._daysFromFb.forEach((d, i) => { if (i < days.length) days[i] = d; else days.push(d); });
-    while (visited.length < days.length) visited.push(new Set());
+    const fbVersion = window._daysFromFb._v || 1;
+    if (fbVersion < DAYS_VERSION) {
+      // Las coords del código son más nuevas: actualizar paradas en Firebase
+      // pero preservar labels personalizados si los hay
+      window._daysFromFb.forEach((fbDay, i) => {
+        if (i < days.length && fbDay.label) days[i].label = fbDay.label;
+        // Las stops se toman del código (coords corregidas)
+      });
+      // Guardar en Firebase con la versión nueva
+      window._fb && window._fb.fbSet('days', { days: days, v: DAYS_VERSION });
+    } else {
+      window._daysFromFb.forEach((d, i) => { if (i < days.length) days[i] = d; else days.push(d); });
+      while (visited.length < days.length) visited.push(new Set());
+    }
   } else {
     try {
       const rawDays = localStorage.getItem(DAYS_KEY);
