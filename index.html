@@ -133,8 +133,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   fbListen('shopping', data => {
     if (data && data.items !== undefined && window._appInited) {
       window._shopFromFb = data;
-      // No llamamos renderOutlets ni tocamos shopItems en memoria
-      // para no pisar cambios locales pendientes de confirmación
+      window._setShopData && window._setShopData(data);
+      window.renderOutlets && window.renderOutlets();
     }
   });
 });
@@ -1524,6 +1524,10 @@ const wmCatMeta = {
 };
 
 window._setWmData = function(d) { wmData = d; };
+window._setShopData = function(d) {
+  if (d.items !== undefined) shopItems = d.items;
+  if (d.checked !== undefined) shopChecked = new Set(d.checked);
+};
 let wmData = [
   { id:'pan', items:[
     { id:'p1', name:'Pan lactal', qty:2, unit:'bolsas', price:2 },
