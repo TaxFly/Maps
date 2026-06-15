@@ -1168,51 +1168,38 @@ let shopListTab = 'need'; // 'need' | 'noneed'
 
 const days = [
   {
-    label: "Zona Kissimmee Este — The Loop & Osceola Pkwy. ",
+    label: "Zona Kissimmee Este — The Loop & Osceola Pkwy.",
     stops: [
-      {name:"Goodwill", desc:"Thrift store. Caza tesoros. Abre 9am, cierra 9pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJD1yqd4mB3YgRfrO0gY3gLSM", lat:28.3427, lng:-81.4133},
-      {name:"T.J. Maxx", desc:"Ropa y accesorios de marca. Abre 9:30am, cierra 9:30pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJl83fqzOB3YgR7C8d5KHaU2E", lat:28.3408, lng:-81.4118},
-      {name:"Nike Clearance Store", desc:"Imperdible. Enorme tienda de clearance. Ir temprano, el stock se agota. Abre 10am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJZY6QIH-B3YgRT_eBW7p1gxg", badge:"star", badgeText:"⭐ imperdible", lat:28.3393, lng:-81.4108},
-      {name:"Burlington", desc:"Gran variedad de compras", url:"https://maps.app.goo.gl/PWVwWTcomGBrQaKi8", lat:28.3415, lng:-81.4125},
-      {name:"JCPenney", desc:"Ropa y accesorios de marca. Abre 9:30am, cierra 9:30pm.", url:"https://maps.app.goo.gl/MhfXPVsCiMXiCHNH6", lat:28.3418, lng:-81.4132},
-      {name:"Kohl's", desc:"Abre 9am. Ropa, hogar y Amazon returns con cupón.", url:"https://www.google.com/maps/place/?q=place_id:ChIJs1DV6c2G3YgRPx1F3-BrEns", lat:28.3560, lng:-81.4292},
-      {name:"Ross Dress for Less", desc:"Puesto N°1 @abrazandoamickey. Abre 9:30am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJJwpr0dGG3YgR_2lXyFE3A94", badge:"rec", badgeText:"N°1", lat:28.3558, lng:-81.4310},
-      {name:"Five Below", desc:"Todo a $5 o menos. Ideal para regalos y gadgets. Abre 10am, cierra 9:30pm.", url:"https://maps.app.goo.gl/fggAGAC2QusW2PyP7", lat:28.3412, lng:-81.4122},
-      {name:"The Loop Kissimmee", desc:"Centro comercial con varios locales. Abre 10am, cierra 9:30pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJ38vfqzOB3YgRl9gSUQ9WgUk", lat:28.3410, lng:-81.4120},
-      {name:"Best Buy", desc:"Abre 10am, cierra 11:00pm.", url:"https://maps.app.goo.gl/SXXohYu6hJtGfgrSA", lat:28.3405, lng:-81.4115},
-      {name:"Marshalls & HomeGoods", desc:"Doble tienda en una. Abre 9:30am, cierra 9:30pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJ8769dMOG3YgR-Puw_9RCXkI", lat:28.3545, lng:-81.4280},
-      {name:"SEPHORA", desc:"Maquillaje.", url:"https://maps.app.goo.gl/g5G4QvHkaNQVjdwu5", lat:28.3420, lng:-81.4135},
-      {name:"Ross Dress for Less", desc:"Ideal para ropa. Abre 9am.", url:"https://maps.app.goo.gl/7hHZeAjBQYao9Jgf9", lat:28.3402, lng:-81.4110},
-      {name:"Target (Irlo Bronson)", desc:"Ropa, electrónica y hogar. Abre 8am, cierra 11pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJCXFwusOB3YgR1PJmC5H9YfI", lat:28.3388, lng:-81.4098},
-      {name:"Marshalls (Irlo Bronson)", desc:"Ropa, electrónica y hogar.", url:"https://maps.app.goo.gl/KvzbZpQL66vRMb6V9", lat:28.3385, lng:-81.4095},
-      {name:"Dollar General", desc:"Al lado del Target. Básicos y snacks muy baratos. Abre 8am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJdWHY656B3YgRdwgoCjgD7yg", lat:28.3382, lng:-81.4092},
+      {name:"The Loop Kissimmee", desc:"Centro comercial con varios locales. Dentro de este hay: Five Below · Ross Dress for Less · Burlington · JCPenney. Horario: 10 a.m.–9:30 p.m.", url:"https://maps.app.goo.gl/CLlNrigMeiPdZnJS6", lat:28.3410, lng:-81.4120},
+      {name:"Nike Clearence Store", desc:"Horario: 10 a.m.–9 p.m.", url:"https://maps.app.goo.gl/7kTb6eeL5j3zpsBd7", badge:"star", badgeText:"⭐ imperdible", lat:28.3393, lng:-81.4108},
+      {name:"T.J. Maxx", desc:"Horario: 9:30 a.m.–9:30 p.m.", url:"https://maps.app.goo.gl/oRgsR94rLNhUDted6", lat:28.3408, lng:-81.4118},
+      {name:"Goodwill", desc:"Horario: 9 a.m.–9 p.m.", url:"https://maps.app.goo.gl/YYQdlKwmboo9WzaC9", lat:28.3427, lng:-81.4133},
+      {name:"The Crosslands Shopping Center", desc:"Horario: 8 a.m.–10 p.m. Dentro de este hay: Ross Dress for Less · Dollar Tree · Five Below · Sephora · Academy Sports · Marshalls & HomeGoods.", url:"https://maps.app.goo.gl/fkygXZREHJzX4F3b8", lat:28.3545, lng:-81.4280},
+      {name:"Burlington", desc:"Horario: 9 a.m.–11 p.m.", url:"https://maps.app.goo.gl/aMnJdBZTa5AIFRhX6", lat:28.3415, lng:-81.4125},
     ]
   },
   {
     label: "Zona Vineland & Regency Village — muy cerca del alojamiento. Ver si no alcanzó algo el día anterior",
     stops: [
-      {name:"T.J. Maxx (Vineland)", desc:"A 2 min del Ross. Abre 9:30am, cierra 9:30pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJX4QEr7yB3YgRyOeAFn-DB0c", lat:28.3683, lng:-81.5058},
-      {name:"Ross Dress for Less (Vineland)", desc:"Puesto N°3 @abrazandoamickey. Abre 9am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJ_bAPr7yB3YgRh_ocqK1ELZk", badge:"rec", badgeText:"N°3", lat:28.3680, lng:-81.5055},
-      {name:"Five Below (Vineland / LBV)", desc:"Todo a $5 o menos. Abre 10am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJ3VTZSbqB3YgROApTUtvyynE", lat:28.3690, lng:-81.5070},
-      {name:"Lake Buena Vista Factory Stores", desc:"Outlet mall. Food court renovado. Abre 10am (dom: cierra 7pm).", url:"https://www.google.com/maps/place/?q=place_id:ChIJjRUQibCB3YgRc19RWjbKwrY", lat:28.3695, lng:-81.5083},
-      {name:"Burlington (Regency Village)", desc:"Mismo estacionamiento que Ross y Marshalls. Abre 9am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJx6ZkbQOB3YgR0F2bW8Owa84", lat:28.3502, lng:-81.4968},
-      {name:"Marshalls (Regency Village)", desc:"Abre 9:30am, cierra 9:30pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJx_lwBMCB3YgRR7lCZixwFVA", lat:28.3498, lng:-81.4965},
-      {name:"Ross Dress for Less (Regency Village)", desc:"Puesto N°2 @abrazandoamickey. Abre 9am, cierra 11:30pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJo2qqCVmB3YgRk7dMfRZb3rg", badge:"rec", badgeText:"N°2", lat:28.3495, lng:-81.4962},
-      {name:"Orlando Vineland Premium Outlets", desc:"El más grande y premium: Gucci, Versace, Nike, Adidas, Disney. Abre 10am (dom: 11am–7pm).", url:"https://www.google.com/maps/place/?q=place_id:ChIJfUTGO2uA3YgR8t5QlAd-jTY", badge:"star", badgeText:"⭐ imperdible", lat:28.3715, lng:-81.5103}
+      {name:"Marshalls / Target / Dollar General", desc:"Horario: 9:30 a.m.–9:30 p.m. / Horario: 8 a.m.–11 p.m.", url:"https://maps.app.goo.gl/3aa8YBAwrtVkgC539", lat:28.3385, lng:-81.4095},
+      {name:"Ross Dress for Less / Burlington", desc:"Horario 9 a.m.–10 p.m. / Horario 9 a.m.–12 a.m.", url:"https://maps.app.goo.gl/W43u2ggMsv6k46jD9", lat:28.3502, lng:-81.4968},
+      {name:"Sunset Plaza", desc:"Horario: 9 a.m.–10 p.m. Dentro de este hay: T.J. Maxx · Ross Dress for Less · Five Below.", url:"https://maps.app.goo.gl/AmlU3fgkGoFEDPVJ8", lat:28.3683, lng:-81.5058},
+      {name:"Lake Buena Vista Factory Stores - Outlet", desc:"Horario: 10 a.m.–8 p.m.", url:"https://maps.app.goo.gl/QAK53VdqWVUfZafr8", lat:28.3695, lng:-81.5083},
+      {name:"Orlando Vineland Premium Outlets", desc:"Horario: 10 a.m.–9 p.m.", url:"https://maps.app.goo.gl/2rkjgb7PIb9HLSnD6", badge:"star", badgeText:"⭐ imperdible", lat:28.3715, lng:-81.5103},
+      {name:"Vineland Pointe", desc:"Horario: 9 a.m.–10 p.m. Dentro de este hay: Ross Dress for Less · Marshalls · Burlington · Five Below · Disney Gift & Toys.", url:"https://maps.app.goo.gl/pamgnSxqRWCbYpNj9", lat:28.3680, lng:-81.5055},
     ]
   },
   {
-    label: "Zona Orlando Norte — Int'l Drive, Turkey Lake, Florida Mall. Ver si no alcanzó algo el día anterior",
+    label: "Zona Orlando Norte — Int'l Drive, Turkey Lake, Florida Mall.",
     stops: [
-      {name:"The Florida Mall", desc:"Mall enorme con muchas marcas. Abre 10am, cierra 8pm (lun–sáb).", url:"https://www.google.com/maps/place/?q=place_id:ChIJIyOEEvd954gR4F34yBVuWSo", badge:"star", badgeText:"⭐ imperdible", lat:28.4540, lng:-81.4382},
-      {name:"Marshalls", desc:"Abre 9:30am.", url:"https://maps.app.goo.gl/YPYXpTXoBU8Z84AF7", lat:28.4548, lng:-81.4390},
-      {name:"Ross Dress for Less", desc:"Abre 9am, cierra 12am.", url:"https://maps.app.goo.gl/VsiGnYi7YP1RMFh26", lat:28.4545, lng:-81.4385},
-      {name:"Orlando International Premium Outlets", desc:"Segundo gran outlet de I-Drive. Nike, Under Armour, Michael Kors, Tory Burch. Abre 10am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJEVALZBp_54gR8UGv7povi28", badge:"star", badgeText:"⭐ imperdible", lat:28.4388, lng:-81.4710},
-      {name:"Orlando Outlet Marketplace", desc:"Nike, Levi's, Adidas con grandes descuentos. Abre 10am, cierra 9pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJm8R4Q_F-54gR_isZahqI35k", lat:28.4405, lng:-81.4688},
-      {name:"Ross Dress for Less", desc:"Puesto N°4 @abrazandoamickey. Pegado al Dollar Tree de I-Drive. Abre 9am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJoQ5jUOx-54gRX56cM-DpI50", badge:"rec", badgeText:"N°4", lat:28.4362, lng:-81.4718},
-      {name:"T.J. Maxx", desc:"Al lado del Burlington de Grand National. Abre 9:30am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJraAOZux-54gRUQVbPxLx1FM", lat:28.4420, lng:-81.4695},
-      {name:"Burlington (Grand National / I-Drive)", desc:"Justo al lado del T.J. Maxx. Abre 9am, cierra 11pm.", url:"https://www.google.com/maps/place/?q=place_id:ChIJt_6aaWx_54gRcrifzLy1h14", lat:28.4418, lng:-81.4692},
-      {name:"Ross Dress for Less", desc:"Puesto N°5 @abrazandoamickey. Abre 9am, cierra 12am.", url:"https://www.google.com/maps/place/?q=place_id:ChIJy2AJ9M5_54gRsUaY6uMmW6o", badge:"rec", badgeText:"N°5", lat:28.4430, lng:-81.4700},
+      {name:"Orlando International Premium Outlets", desc:"Horario: 10 a.m.–9 p.m.", url:"https://maps.app.goo.gl/Fzwf9JDku6AF4PRe7", badge:"star", badgeText:"⭐ imperdible", lat:28.4388, lng:-81.4710},
+      {name:"Orlando Outlet Marketplace", desc:"Horario: 10 a.m.–9 p.m.", url:"https://maps.app.goo.gl/qGLit5gyvdH8YpzFA", lat:28.4405, lng:-81.4688},
+      {name:"International Drive Value Center", desc:"Horario: 9 a.m.–11 p.m. Dentro de este hay: Ross Dress for Less · Five Below · Dollar Tree.", url:"https://maps.app.goo.gl/8rXuoZKVVjjP5HE66", lat:28.4362, lng:-81.4718},
+      {name:"International Festival", desc:"Horario: 9 a.m.–11 p.m. Dentro de este hay: Five Below · T.J. Maxx · Burlington.", url:"https://maps.app.goo.gl/akZPh5ixzbfYAPLU7", lat:28.4420, lng:-81.4695},
+      {name:"The Florida Mall", desc:"Horario: 10 a.m.–8 p.m.", url:"https://maps.app.goo.gl/RQhKWvzIuYo7Q2RK6", badge:"star", badgeText:"⭐ imperdible", lat:28.4540, lng:-81.4382},
+      {name:"Ross Dress for Less", desc:"Horario: 9:30 a.m.–11 p.m.", url:"https://maps.app.goo.gl/xUy8bfApcVKnJ8Ja9", lat:28.4545, lng:-81.4385},
+      {name:"Ross Dress for Less / Marshalls / Burlington", desc:"Horario: 9:30 a.m.–11 p.m.", url:"https://maps.app.goo.gl/loyjwczu59MvC9Px7", lat:28.4548, lng:-81.4390},
+      {name:"Ross Dress for Less", desc:"Horario: 9 a.m.–11:30 p.m.", url:"https://maps.app.goo.gl/EPoXDEfHc2z3N4iR7", lat:28.4430, lng:-81.4700},
     ]
   }
 ];
@@ -1960,7 +1947,7 @@ function shopGetItem(id) { return shopItems.find(i => i.id === id); }
 function renderOutlets() {
   shopLoad();
   const panel = document.getElementById('panel-outlets');
-  const dayLabels = ['Lun 25/01','Mar 26/01','Mié 27/01'];
+  const dayLabels = ['Sáb 25/01','Dom 26/01','Lun 27/01'];
   const dayNames = ['Día 1','Día 2','Día 3'];
 
   let html = `<div class="outlets-panel">
