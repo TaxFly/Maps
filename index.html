@@ -11,6 +11,131 @@
 <link rel="apple-touch-icon" href="data:image/png;base64,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">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCQ-JeQ5sHqv5PC-Md_Qfif3ulXOfyFubc",
+  authDomain: "orlando-planning-5c1e1.firebaseapp.com",
+  projectId: "orlando-planning-5c1e1",
+  storageBucket: "orlando-planning-5c1e1.firebasestorage.app",
+  messagingSenderId: "658373278539",
+  appId: "1:658373278539:web:83f019075c8f47555dc6ce"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+async function fbSet(docId, data) {
+  try { await setDoc(doc(db, "orlando", docId), data); }
+  catch(e) { console.error("fbSet error", e); }
+}
+
+async function fbGet(docId) {
+  try {
+    const snap = await getDoc(doc(db, "orlando", docId));
+    return snap.exists() ? snap.data() : null;
+  } catch(e) { console.error("fbGet error", e); return null; }
+}
+
+function fbListen(docId, callback) {
+  return onSnapshot(doc(db, "orlando", docId), snap => {
+    if (snap.exists()) callback(snap.data());
+  });
+}
+
+window._fb = { fbSet, fbGet, fbListen };
+
+function showSyncOverlay(show) {
+  let el = document.getElementById('sync-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'sync-overlay';
+    el.style.cssText = 'position:fixed;inset:0;background:#0e0e10;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;';
+    el.innerHTML = '<div style="font-family:Syne,sans-serif;font-size:18px;font-weight:700;color:#f5c842;">Orlando Planning</div><div style="font-size:13px;color:#888580;">Sincronizando...</div><div class="sync-spinner"></div>';
+    const style = document.createElement('style');
+    style.textContent = '.sync-spinner{width:28px;height:28px;border:3px solid #1f1f23;border-top-color:#f5c842;border-radius:50%;animation:spin .7s linear infinite;}@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(style);
+    document.body.appendChild(el);
+  }
+  el.style.display = show ? 'flex' : 'none';
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  showSyncOverlay(true);
+
+  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb] = await Promise.all([
+    fbGet('hotel'),
+    fbGet('days'),
+    fbGet('visited'),
+    fbGet('meals'),
+    fbGet('walmart'),
+    fbGet('wmChecked'),
+    fbGet('shopping'),
+  ]);
+
+  if (hotelData) window._hotelFromFb = hotelData;
+  if (daysData && daysData.days) window._daysFromFb = daysData.days;
+  if (visitedData && visitedData.visited) window._visitedFromFb = visitedData.visited;
+  if (mealDataFb && mealDataFb.meals) window._mealsFromFb = mealDataFb.meals;
+  if (wmDataFb && wmDataFb.data) window._wmDataFromFb = wmDataFb.data;
+  if (wmCheckedFb && wmCheckedFb.checked) window._wmCheckedFromFb = wmCheckedFb.checked;
+  if (shopDataFb) window._shopFromFb = shopDataFb;
+
+  window._fbReady = true;
+  showSyncOverlay(false);
+  if (window._appInit) window._appInit();
+
+  // Realtime listeners
+  fbListen('hotel', data => {
+    if (window.hotel) { Object.assign(window.hotel, data); window.renderOutlets && window.renderOutlets(); }
+  });
+  fbListen('visited', data => {
+    if (data && data.visited && window.visited) {
+      data.visited.forEach((arr, i) => {
+        if (window.visited[i]) { window.visited[i].clear(); arr.forEach(v => window.visited[i].add(v)); }
+      });
+      window.renderOutlets && window.renderOutlets();
+      window.updateGlobal && window.updateGlobal();
+    }
+  });
+  fbListen('days', data => {
+    if (data && data.days && window.days) {
+      data.days.forEach((d, i) => { if (i < window.days.length) window.days[i] = d; else window.days.push(d); });
+      while (window.visited.length < window.days.length) window.visited.push(new Set());
+      window.renderOutlets && window.renderOutlets();
+      window.updateGlobal && window.updateGlobal();
+    }
+  });
+  fbListen('meals', data => {
+    if (data && data.meals && window._appInited) {
+      window._setMealData && window._setMealData(data.meals);
+      window.renderComidas && window.renderComidas();
+    }
+  });
+  fbListen('walmart', data => {
+    if (data && data.data && window._appInited) {
+      window._setWmData && window._setWmData(data.data);
+      window.renderWalmart && window.renderWalmart();
+    }
+  });
+  fbListen('wmChecked', data => {
+    if (data && data.checked && window.wmChecked) {
+      window.wmChecked.clear();
+      data.checked.forEach(k => window.wmChecked.add(k));
+      window.renderWalmart && window.renderWalmart();
+    }
+  });
+  fbListen('shopping', data => {
+    if (data && data.items !== undefined && window._appInited) {
+      window._shopFromFb = data;
+      window.renderOutlets && window.renderOutlets();
+    }
+  });
+});
+</script>
+
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -68,6 +193,24 @@ body {
   margin-top: 3px;
   font-weight: 300;
 }
+.refresh-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 15px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.refresh-btn:active { transform: rotate(180deg); opacity: 0.6; }
+.refresh-btn.spinning { animation: spinOnce .5s ease; }
+@keyframes spinOnce { to { transform: rotate(360deg); } }
 .global-counter {
   background: var(--surface2);
   border: 1px solid var(--border2);
@@ -1116,7 +1259,10 @@ body.theme-comidas .outlets-stab.active { background: #5ecf8a; color: #0e0e10; b
       <div class="header-title" id="main-title">Outlets <span class="ht-accent">Orlando</span></div>
       <div class="header-subtitle" id="main-subtitle">🛍️ Cronograma de compras · 25–27 enero</div>
     </div>
-    <div class="global-counter" id="global-counter">—</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button class="refresh-btn" id="refresh-btn" onclick="hardRefresh()" title="Actualizar app">↻</button>
+      <div class="global-counter" id="global-counter">—</div>
+    </div>
   </div>
   <div class="tabs">
     <button class="tab active" id="maintab-outlets" onclick="switchSection('outlets')">🛍️ Outlets</button>
@@ -1145,6 +1291,7 @@ function hotelLoad() {
 }
 function hotelSave() {
   try { localStorage.setItem(HOTEL_KEY, JSON.stringify(hotel)); } catch(e){}
+  window._fb && window._fb.fbSet('hotel', hotel);
 }
 hotelLoad();
 
@@ -1216,26 +1363,34 @@ function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     localStorage.setItem(DAYS_KEY, JSON.stringify(days));
   } catch(e) {}
+  window._fb && window._fb.fbSet('visited', { visited: visited.map(s => [...s]) });
+  window._fb && window._fb.fbSet('days', { days: days });
 }
 
 function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    data.forEach((arr, i) => arr.forEach(v => visited[i].add(v)));
-  } catch(e) {}
-  try {
-    const rawDays = localStorage.getItem(DAYS_KEY);
-    if (rawDays) {
-      const savedDays = JSON.parse(rawDays);
-      if (savedDays.length >= days.length) {
-        savedDays.forEach((d, i) => { if (i < days.length) days[i] = d; else days.push(d); });
-        // Extend visited array if days were added
-        while (visited.length < days.length) visited.push(new Set());
+  if (window._visitedFromFb) {
+    window._visitedFromFb.forEach((arr, i) => { if (visited[i]) arr.forEach(v => visited[i].add(v)); });
+  } else {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) { const data = JSON.parse(raw); data.forEach((arr, i) => arr.forEach(v => visited[i].add(v))); }
+    } catch(e) {}
+  }
+  if (window._daysFromFb) {
+    window._daysFromFb.forEach((d, i) => { if (i < days.length) days[i] = d; else days.push(d); });
+    while (visited.length < days.length) visited.push(new Set());
+  } else {
+    try {
+      const rawDays = localStorage.getItem(DAYS_KEY);
+      if (rawDays) {
+        const savedDays = JSON.parse(rawDays);
+        if (savedDays.length >= days.length) {
+          savedDays.forEach((d, i) => { if (i < days.length) days[i] = d; else days.push(d); });
+          while (visited.length < days.length) visited.push(new Set());
+        }
       }
-    }
-  } catch(e) {}
+    } catch(e) {}
+  }
 }
 
 function totalDone() {
@@ -1243,6 +1398,13 @@ function totalDone() {
 }
 function totalAll() {
   return days.reduce((acc, d) => acc + d.stops.length, 0);
+}
+
+function hardRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 500); }
+  // Force reload bypassing cache
+  window.location.reload(true);
 }
 
 function updateGlobal() {
@@ -1301,22 +1463,47 @@ function switchDay(d) {
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
-loadState();
-renderOutlets();
-updateGlobal();
+// App init - called after Firebase data is loaded
+window._appInit = function() {
+  hotelLoad();
+  loadState();
+  mealLoad();
+  wmLoad();
+  shopLoad();
+  renderOutlets();
+  updateGlobal();
+  // Expose globals for realtime listeners
+  window.visited = visited;
+  window.days = days;
+  window.hotel = hotel;
+  window.wmChecked = wmChecked;
+  window.renderOutlets = renderOutlets;
+  window.renderComidas = renderComidas;
+  window.renderWalmart = renderWalmart;
+  window.updateGlobal = updateGlobal;
+  window._appInited = true;
+};
+
+// If Firebase already ready (unlikely but safe), init now
+if (window._fbReady) {
+  window._appInit();
+} // else Firebase module will call _appInit after loading
 
 // ─── COMIDAS ───────────────────────────────────────────────
 const MEAL_KEY = 'orlando-meals-v1';
 function mealSave() {
   try { localStorage.setItem(MEAL_KEY, JSON.stringify(mealData)); } catch(e) {}
+  window._fb && window._fb.fbSet('meals', { meals: mealData });
 }
 function mealLoad() {
+  if (window._mealsFromFb) { mealData = window._mealsFromFb; return; }
   try {
     const d = localStorage.getItem(MEAL_KEY);
     if (d) mealData = JSON.parse(d);
   } catch(e) {}
 }
 
+window._setMealData = function(d) { mealData = d; };
 let mealData = [
   { id:1, date:"17 ene", title:"Llegada (5pm)", type:"arrival",
     meals:["—","—","Delivery o aeropuerto"], snacks:[], notes:"Llegás a las 5pm. No cocinar." },
@@ -1354,8 +1541,6 @@ let mealData = [
     meals:["Tostadas con Nutella + café + Donettes","Wrap rápido con lo que quede","—"],
     snacks:[], notes:"Liquidar restos. No comprar nada extra." },
 ];
-mealLoad();
-
 const mealNames = ["Desayuno","Almuerzo","Cena"];
 const typeConf = {
   disney:    { label:"Disney 🏰",    cls:"mbadge-disney" },
@@ -1580,6 +1765,7 @@ const wmCatMeta = {
   extras:    { icon:'🎒', title:'Extras' },
 };
 
+window._setWmData = function(d) { wmData = d; };
 let wmData = [
   { id:'pan', items:[
     { id:'p1', name:'Pan lactal', qty:2, unit:'bolsas', price:2 },
@@ -1661,14 +1847,20 @@ function wmSave() {
     localStorage.setItem(WM_CHECKED_KEY, JSON.stringify([...wmChecked]));
     localStorage.setItem(WM_OPEN_KEY, JSON.stringify([...wmOpenSections]));
   } catch(e){}
+  window._fb && window._fb.fbSet('walmart', { data: wmData });
+  window._fb && window._fb.fbSet('wmChecked', { checked: [...wmChecked] });
 }
 
 function wmLoad() {
+  if (window._wmDataFromFb) { wmData = window._wmDataFromFb; }
+  else {
+    try { const d = localStorage.getItem(WM_DATA_KEY); if (d) wmData = JSON.parse(d); } catch(e){}
+  }
+  if (window._wmCheckedFromFb) { window._wmCheckedFromFb.forEach(k => wmChecked.add(k)); }
+  else {
+    try { const c = localStorage.getItem(WM_CHECKED_KEY); if (c) JSON.parse(c).forEach(k => wmChecked.add(k)); } catch(e){}
+  }
   try {
-    const d = localStorage.getItem(WM_DATA_KEY);
-    if (d) wmData = JSON.parse(d);
-    const c = localStorage.getItem(WM_CHECKED_KEY);
-    if (c) JSON.parse(c).forEach(k => wmChecked.add(k));
     const o = localStorage.getItem(WM_OPEN_KEY);
     if (o) { wmOpenSections.clear(); JSON.parse(o).forEach(k => wmOpenSections.add(k)); }
   } catch(e){}
@@ -1920,8 +2112,14 @@ function switchSection(section) {
 
 function shopSave() {
   try { localStorage.setItem(SHOPPING_KEY, JSON.stringify({ items: shopItems, checked: [...shopChecked] })); } catch(e) {}
+  window._fb && window._fb.fbSet('shopping', { items: shopItems, checked: [...shopChecked] });
 }
 function shopLoad() {
+  if (window._shopFromFb && window._shopFromFb.items) {
+    shopItems = window._shopFromFb.items;
+    shopChecked = new Set(window._shopFromFb.checked || []);
+    return;
+  }
   try {
     const raw = localStorage.getItem(SHOPPING_KEY);
     if (!raw) { shopItems = getDefaultShopItems(); return; }
@@ -1947,7 +2145,7 @@ function shopGetItem(id) { return shopItems.find(i => i.id === id); }
 function renderOutlets() {
   shopLoad();
   const panel = document.getElementById('panel-outlets');
-  const dayLabels = ['Sáb 25/01','Dom 26/01','Lun 27/01'];
+  const dayLabels = ['Lun 25/01','Mar 26/01','Mié 27/01'];
   const dayNames = ['Día 1','Día 2','Día 3'];
 
   let html = `<div class="outlets-panel">
@@ -2552,7 +2750,6 @@ function shopAddItem() {
   showMToast('Prenda agregada ✓');
 }
 
-wmLoad();
 </script>
 
 <button class="add-day-fab" id="addDayFab" onclick="openMealModal()">+ Agregar día</button>
