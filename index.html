@@ -65,7 +65,7 @@ function showSyncOverlay(show) {
 window.addEventListener('DOMContentLoaded', async () => {
   showSyncOverlay(true);
 
-  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb] = await Promise.all([
+  const results = await Promise.allSettled([
     fbGet('hotel'),
     fbGet('days'),
     fbGet('visited'),
@@ -73,7 +73,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     fbGet('walmart'),
     fbGet('wmChecked'),
     fbGet('shopping'),
+    fbGet('parques'),
   ]);
+
+  const val = (r) => r.status === 'fulfilled' ? r.value : null;
+  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, parquesDataFb] = results.map(val);
 
   if (hotelData) window._hotelFromFb = hotelData;
   if (daysData && daysData.days) window._daysFromFb = daysData.days;
@@ -82,6 +86,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (wmDataFb && wmDataFb.data) window._wmDataFromFb = wmDataFb.data;
   if (wmCheckedFb && wmCheckedFb.checked) window._wmCheckedFromFb = wmCheckedFb.checked;
   if (shopDataFb) window._shopFromFb = shopDataFb;
+  if (parquesDataFb && parquesDataFb.state) window._parquesFromFb = parquesDataFb.state;
 
   window._fbReady = true;
   showSyncOverlay(false);
@@ -137,6 +142,13 @@ window.addEventListener('DOMContentLoaded', async () => {
       window.renderOutlets && window.renderOutlets();
     }
   });
+  fbListen('parques', data => {
+    if (data && data.state && window._appInited) {
+      parquesState = data.state;
+      window.renderParques && window.renderParques();
+      updateParquesCounter();
+    }
+  });
 });
 </script>
 
@@ -164,7 +176,7 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  padding-bottom: 120px;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   overflow-x: hidden;
 }
 
@@ -537,8 +549,12 @@ body {
 }
 .day-map-chevron { font-size: 13px; color: var(--muted); transition: transform .25s; }
 .day-map-wrap.open .day-map-chevron { transform: rotate(180deg); }
-#day-map-container { display: none; height: 280px; }
-.day-map-wrap.open #day-map-container { display: block; }
+.day-map-container { height: 280px; isolation: isolate; }
+/* Contener los z-indexes de Leaflet dentro del mapa */
+.day-map-wrap { position: relative; z-index: 1; }
+.day-map-container .leaflet-pane,
+.day-map-container .leaflet-top,
+.day-map-container .leaflet-bottom { z-index: auto; }
 /* Leaflet popup dark theme */
 .leaflet-popup-content-wrapper {
   background: var(--surface2) !important;
@@ -593,7 +609,7 @@ body {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.stop-card { animation: slideIn .3s ease both; }
+.stop-card { /* animation applied by JS on first render only */ }
 
 /* ═══════════════ COMIDAS SECTION ═══════════════ */
 .comidas-panel { padding: 12px 0 20px; }
@@ -734,7 +750,7 @@ body {
 
 .add-day-fab {
   position: fixed;
-  bottom: 80px;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   right: 20px;
   background: var(--accent);
   color: #0e0e10;
@@ -822,7 +838,7 @@ body {
 }
 .mtoast {
   position: fixed;
-  bottom: 85px;
+  bottom: calc(85px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%) translateY(16px);
   background: var(--surface2);
@@ -957,6 +973,292 @@ body.theme-comidas .notes-ta:focus { border-color: #5ecf8a; color: var(--text); 
 body.theme-comidas .mform-group input:focus, body.theme-comidas .mform-group select:focus { border-color: #5ecf8a; }
 body.theme-comidas .mbtn-primary { background: #5ecf8a; }
 body.theme-comidas .outlets-stab.active { background: #5ecf8a; color: #0e0e10; border-color: #5ecf8a; }
+
+/* Parques theme — violeta/índigo */
+body.theme-parques { --theme-accent: #a78bfa; --theme-accent2: #7c3aed; }
+body.theme-parques .header { border-bottom-color: rgba(167,139,250,0.2); }
+body.theme-parques .header-title .ht-accent { color: #a78bfa; }
+body.theme-parques .tab.active { background: #a78bfa; color: #0e0e10; border-color: #a78bfa; }
+body.theme-parques .nav-btn.active { background: #a78bfa; color: #0e0e10; border-color: #a78bfa; }
+body.theme-parques .global-counter { color: #a78bfa; border-color: rgba(167,139,250,0.25); }
+
+/* ═══════════════ PARQUES SECTION ═══════════════ */
+.parques-panel { padding: 12px 0 20px; }
+.parques-global-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.parques-global-nums {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+}
+.parques-global-count {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  color: #a78bfa;
+  line-height: 1;
+}
+.parques-global-lbl {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-top: 2px;
+  text-align: center;
+}
+.parques-global-right { flex: 1; }
+.parques-global-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.parques-prog-bg {
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.parques-prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #a78bfa, #7c3aed);
+  border-radius: 2px;
+  transition: width .4s cubic-bezier(.4,0,.2,1);
+}
+.parques-filter-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.parques-filter-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  letter-spacing: .3px;
+}
+.parques-filter-btn.active { background: #a78bfa; color: #0e0e10; border-color: #a78bfa; }
+.park-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.park-card.pk-hidden { display: none; }
+.park-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+.park-card-header::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+}
+.pk-mk .park-card-header::before  { background: #c084fc; }
+.pk-epcot .park-card-header::before { background: #4dd0c4; }
+.pk-hs .park-card-header::before   { background: #ff7675; }
+.pk-ioa .park-card-header::before  { background: #69f0ae; }
+.pk-usf .park-card-header::before  { background: #64b5f6; }
+.pk-epic .park-card-header::before { background: #ce93d8; }
+.park-card-emoji { font-size: 20px; flex-shrink: 0; }
+.park-card-info { flex: 1; min-width: 0; }
+.park-card-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.pk-mk .park-card-name  { color: #c084fc; }
+.pk-epcot .park-card-name { color: #4dd0c4; }
+.pk-hs .park-card-name   { color: #ff7675; }
+.pk-ioa .park-card-name  { color: #69f0ae; }
+.pk-usf .park-card-name  { color: #64b5f6; }
+.pk-epic .park-card-name { color: #ce93d8; }
+.park-card-label { font-size: 10px; color: var(--muted); font-weight: 300; }
+.park-card-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.park-card-count {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+.pk-mk .park-card-count  { color: #c084fc; }
+.pk-epcot .park-card-count { color: #4dd0c4; }
+.pk-hs .park-card-count   { color: #ff7675; }
+.pk-ioa .park-card-count  { color: #69f0ae; }
+.pk-usf .park-card-count  { color: #64b5f6; }
+.pk-epic .park-card-count { color: #ce93d8; }
+.park-mini-bar-bg { width: 60px; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+.park-mini-bar-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.pk-mk .park-mini-bar-fill  { background: #c084fc; }
+.pk-epcot .park-mini-bar-fill { background: #4dd0c4; }
+.pk-hs .park-mini-bar-fill   { background: #ff7675; }
+.pk-ioa .park-mini-bar-fill  { background: #69f0ae; }
+.pk-usf .park-mini-bar-fill  { background: #64b5f6; }
+.pk-epic .park-mini-bar-fill { background: #ce93d8; }
+.park-card-chevron { font-size: 12px; color: var(--muted); transition: transform .25s; }
+.park-card.open .park-card-chevron { transform: rotate(180deg); }
+.park-card-body { display: none; border-top: 1px solid var(--border); }
+.park-card.open .park-card-body { display: block; }
+.park-zone-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  padding: 10px 16px 6px;
+}
+.park-attr-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background .15s;
+  border-top: 1px solid var(--border);
+}
+.park-attr-item:active { background: var(--surface2); }
+.park-attr-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+  transition: all .15s;
+  color: transparent;
+}
+.park-attr-item.pk-done .park-attr-check {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+}
+.park-attr-body { flex: 1; min-width: 0; }
+.park-attr-name {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+  transition: all .15s;
+}
+.park-attr-item.pk-done .park-attr-name { color: var(--muted); text-decoration: line-through; }
+.park-attr-height { font-size: 10px; color: #a78bfa; font-weight: 600; margin-top: 2px; }
+.parques-reset-row { display: flex; justify-content: center; margin-top: 14px; }
+
+/* ═══════ CONFIRM / ALERT MODALS ═══════ */
+.confirm-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.75);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.confirm-overlay.open { display: flex; }
+.confirm-box {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 22px;
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+}
+.confirm-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.confirm-msg {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+.confirm-actions { display: flex; gap: 8px; justify-content: center; }
+.confirm-btn-cancel {
+  flex: 1;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+}
+.confirm-btn-ok {
+  flex: 1;
+  background: #e05c5c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.confirm-btn-ok.safe {
+  background: var(--accent);
+  color: #0e0e10;
+}
+
+/* ═══════ FIELD ERROR MESSAGES ═══════ */
+.field-error {
+  font-size: 11px;
+  color: #e05c5c;
+  margin-top: 4px;
+  display: none;
+}
+.field-error.show { display: block; }
+.mform-group input.error, .mform-group select.error { border-color: #e05c5c !important; }
+
+/* ═══════ SYNC STATUS INDICATOR ═══════ */
+.sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border2);
+  transition: background .3s;
+  flex-shrink: 0;
+}
+.sync-dot.saving { background: var(--accent); animation: syncPulse .6s ease infinite alternate; }
+.sync-dot.saved  { background: var(--green); }
+.sync-dot.error  { background: #e05c5c; }
+@keyframes syncPulse { to { opacity: 0.4; } }
 </style>
 </head>
 <body class="theme-outlets">
@@ -968,6 +1270,7 @@ body.theme-comidas .outlets-stab.active { background: #5ecf8a; color: #0e0e10; b
       <div class="header-subtitle" id="main-subtitle">🛍️ Cronograma de compras · 25–27 enero</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
+      <div class="sync-dot" id="sync-dot" title="Estado de sincronización"></div>
       <button class="refresh-btn" id="refresh-btn" onclick="hardRefresh()" title="Actualizar app">↻</button>
       <div class="global-counter" id="global-counter">—</div>
     </div>
@@ -976,17 +1279,20 @@ body.theme-comidas .outlets-stab.active { background: #5ecf8a; color: #0e0e10; b
     <button class="tab active" id="maintab-outlets" onclick="switchSection('outlets')">🛍️ Outlets</button>
     <button class="tab" id="maintab-comidas" onclick="switchSection('comidas')">🍽️ Comidas</button>
     <button class="tab" id="maintab-walmart" onclick="switchSection('walmart')">🛒 Walmart</button>
+    <button class="tab" id="maintab-parques" onclick="switchSection('parques')">🎢 Parques</button>
   </div>
 </header>
 
 <div id="panel-outlets" class="panel active"></div>
 <div id="panel-comidas" class="panel"></div>
 <div id="panel-walmart" class="panel"></div>
+<div id="panel-parques" class="panel"></div>
 
 <nav class="bottom-nav">
   <button class="nav-btn active" id="nav-outlets" onclick="switchSection('outlets')">🛍️<span class="nav-date">Outlets</span></button>
   <button class="nav-btn" id="nav-comidas" onclick="switchSection('comidas')">🍽️<span class="nav-date">Comidas</span></button>
   <button class="nav-btn" id="nav-walmart" onclick="switchSection('walmart')">🛒<span class="nav-date">Walmart</span></button>
+  <button class="nav-btn" id="nav-parques" onclick="switchSection('parques')">🎢<span class="nav-date">Parques</span></button>
 </nav>
 
 <div class="confetti-wrap" id="confetti-wrap"></div>
@@ -1172,19 +1478,18 @@ function toggleStop(dayIdx, stopIdx) {
   updateGlobal();
 }
 
-function resetDay(d) {
+async function resetDay(d) {
+  const dayLabel = ['Día 1','Día 2','Día 3'][d] || `Día ${d+1}`;
+  const ok = await showConfirm(`Se van a desmarcar todas las paradas de ${dayLabel}.`, '¿Reiniciar día?', 'Reiniciar', true);
+  if (!ok) return;
   visited[d].clear();
   saveState();
   renderOutlets();
   updateGlobal();
 }
 
-function switchDay(d) {
-  // internal: switch within outlets sub-tabs
-  document.querySelectorAll('.outlets-day-tab').forEach((t,i) => t.classList.toggle('active', i===d));
-  document.querySelectorAll('.outlets-day-panel').forEach((p,i) => p.classList.toggle('active', i===d));
-  window.scrollTo({top:0, behavior:'smooth'});
-}
+
+
 
 // App init - called after Firebase data is loaded
 window._appInit = function() {
@@ -1193,6 +1498,7 @@ window._appInit = function() {
   mealLoad();
   wmLoad();
   shopLoad();
+  parquesLoad();
   renderOutlets();
   updateGlobal();
   // Expose globals for realtime listeners
@@ -1203,8 +1509,11 @@ window._appInit = function() {
   window.renderOutlets = renderOutlets;
   window.renderComidas = renderComidas;
   window.renderWalmart = renderWalmart;
+  window.renderParques = renderParques;
   window.updateGlobal = updateGlobal;
   window._appInited = true;
+  // Patch fbSet to show sync dot feedback
+  patchFbSyncDot();
 };
 
 // If Firebase already ready (unlikely but safe), init now
@@ -1431,19 +1740,41 @@ function saveMealNotes(id, val) {
   mealData.find(d=>d.id===id).notes = val;
   mealSave();
 }
-function deleteMealDay(id) {
-  if (!confirm('¿Eliminar este día?')) return;
+async function deleteMealDay(id) {
+  const ok = await showConfirm('¿Eliminar este día del plan de comidas?', '¿Eliminar día?', 'Eliminar');
+  if (!ok) return;
   mealData = mealData.filter(d=>d.id!==id);
   mealSave();
   renderComidas();
   showMToast('Día eliminado');
 }
 function openMealModal() { document.getElementById('mealModal').classList.add('open'); }
-function closeMealModal() { document.getElementById('mealModal').classList.remove('open'); }
+function closeMealModal() {
+  document.getElementById('mealModal').classList.remove('open');
+  ['mDate','mTitle'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('error');
+    const err = document.getElementById(id + '-err');
+    if (err) err.classList.remove('show');
+  });
+}
 function addMealDay() {
   const date = document.getElementById('mDate').value.trim();
   const title = document.getElementById('mTitle').value.trim();
-  if (!date || !title) { alert('Completá fecha y título'); return; }
+  let hasError = false;
+  ['mDate','mTitle'].forEach(id => {
+    const el = document.getElementById(id);
+    const err = document.getElementById(id + '-err');
+    if (!el.value.trim()) {
+      el.classList.add('error');
+      if (err) err.classList.add('show');
+      hasError = true;
+    } else {
+      el.classList.remove('error');
+      if (err) err.classList.remove('show');
+    }
+  });
+  if (hasError) return;
   const newId = Date.now();
   mealData.push({
     id: newId,
@@ -1482,18 +1813,74 @@ function saveHotelEdit() {
   showMToast('Dirección guardada ✓');
 }
 
+let _toastEl = null;
 function showMToast(msg) {
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2000);
+  if (!_toastEl) _toastEl = document.getElementById('mtoast');
+  if (!_toastEl) return;
+  _toastEl.textContent = msg;
+  _toastEl.classList.add('show');
+  clearTimeout(_toastEl._timer);
+  _toastEl._timer = setTimeout(() => _toastEl.classList.remove('show'), 2000);
 }
 
-// Override switchDay to hide fab when on outlets
-const _origSwitchDay = switchDay;
-window.switchDay = function(d) {
-  _origSwitchDay(d);
-  document.getElementById('addDayFab').style.display = 'none';
-};
+// ─── SYNC DOT ────────────────────────────────────────────────
+let _syncTimer = null;
+function syncDotState(state) {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  if (state === 'saved') {
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(() => { dot.className = 'sync-dot'; }, 2500);
+  }
+}
+
+// Wrap fbSet to show sync feedback — called after _appInit when window._fb is guaranteed to exist
+function patchFbSyncDot() {
+  if (!window._fb) return;
+  const orig = window._fb.fbSet;
+  window._fb.fbSet = async function(docId, data) {
+    syncDotState('saving');
+    try {
+      await orig(docId, data);
+      syncDotState('saved');
+    } catch(e) {
+      syncDotState('error');
+      console.error('fbSet error', e);
+    }
+  };
+}
+
+// ─── CUSTOM CONFIRM / ALERT ──────────────────────────────────
+let _confirmResolve = null;
+function showConfirm(msg, title = '¿Confirmar?', okLabel = 'Eliminar', safe = false) {
+  return new Promise(resolve => {
+    _confirmResolve = resolve;
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMsg').textContent = msg;
+    const okBtn = document.getElementById('confirmOk');
+    okBtn.textContent = okLabel;
+    okBtn.className = 'confirm-btn-ok' + (safe ? ' safe' : '');
+    document.getElementById('confirmOverlay').classList.add('open');
+    okBtn.onclick = () => { document.getElementById('confirmOverlay').classList.remove('open'); resolve(true); };
+    document.getElementById('confirmCancel').onclick = () => { document.getElementById('confirmOverlay').classList.remove('open'); resolve(false); };
+  });
+}
+function showAlert(msg, title = 'Atención') {
+  return new Promise(resolve => {
+    document.getElementById('alertTitle').textContent = title;
+    document.getElementById('alertMsg').textContent = msg;
+    document.getElementById('alertOverlay').classList.add('open');
+    document.getElementById('alertOk').onclick = () => { closeAlert(); resolve(); };
+  });
+}
+function closeAlert() {
+  document.getElementById('alertOverlay').classList.remove('open');
+}
+
+
+
+
 
 // listener se registra al final del script, después de que el DOM esté listo
 window.addEventListener('DOMContentLoaded', function(){
@@ -1658,9 +2045,10 @@ function wmToggleSection(catId) {
   renderWalmart();
 }
 
-function wmDeleteItem(catId, itemId, e) {
+async function wmDeleteItem(catId, itemId, e) {
   e.stopPropagation();
-  if (!confirm('¿Eliminar este producto?')) return;
+  const ok = await showConfirm('¿Eliminar este producto de la lista?', '¿Eliminar producto?', 'Eliminar');
+  if (!ok) return;
   const cat = wmGetCat(catId);
   cat.items = cat.items.filter(i => i.id !== itemId);
   wmChecked.delete(itemId);
@@ -1715,7 +2103,13 @@ function wmAddItem() {
   const qty   = parseFloat(document.getElementById('wm-add-qty').value) || 1;
   const unit  = document.getElementById('wm-add-unit').value.trim() || '';
   const price = parseFloat(document.getElementById('wm-add-price').value) || 0;
-  if (!name) { alert('Escribí el nombre del producto'); return; }
+  if (!name) {
+    const el = document.getElementById('wm-add-name');
+    el.classList.add('error');
+    document.getElementById('wm-add-name-err').classList.add('show');
+    el.focus();
+    return;
+  }
   const cat = wmGetCat(catId);
   const newId = 'custom-' + Date.now();
   cat.items.push({ id: newId, name, qty, unit, price });
@@ -1726,8 +2120,9 @@ function wmAddItem() {
   showMToast('Producto agregado ✓');
 }
 
-function wmReset() {
-  if (!confirm('¿Reiniciar todos los checks?')) return;
+async function wmReset() {
+  const ok = await showConfirm('Se van a desmarcar todos los productos del carrito.', '¿Reiniciar checks?', 'Reiniciar', true);
+  if (!ok) return;
   wmChecked.clear();
   wmSave();
   renderWalmart();
@@ -1805,8 +2200,8 @@ function renderWalmart() {
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <div class="wm-item-price">$${lineTotal}</div>
-              <button class="wm-icon-btn" onclick="wmStartEdit('${cat.id}','${item.id}',event)" title="Editar">✏️</button>
-              <button class="wm-icon-btn wm-icon-del" onclick="wmDeleteItem('${cat.id}','${item.id}',event)" title="Eliminar">✕</button>
+              <button class="wm-icon-btn" onclick="wmStartEdit('${cat.id}','${item.id}',event)" title="Editar" aria-label="Editar ${item.name}">✏️</button>
+              <button class="wm-icon-btn wm-icon-del" onclick="wmDeleteItem('${cat.id}','${item.id}',event)" title="Eliminar" aria-label="Eliminar ${item.name}">✕</button>
             </div>
           </div>`;
       }
@@ -1843,6 +2238,12 @@ const sectionMeta = {
     accent: 'Walmart Run',
     subtitle: '🛒 Lista de compras · Walmart Supercenter',
     theme: 'theme-walmart'
+  },
+  parques: {
+    title: 'Orlando',
+    accent: 'Parques',
+    subtitle: '🎢 Tracker de atracciones · Disney & Universal',
+    theme: 'theme-parques'
   }
 };
 
@@ -1866,6 +2267,14 @@ function switchSection(section) {
   if (section === 'comidas') renderComidas();
   if (section === 'walmart') renderWalmart();
   if (section === 'outlets') renderOutlets();
+  if (section === 'parques') renderParques();
+
+  // Update global counter label for parques
+  if (section === 'parques') {
+    updateParquesCounter();
+  } else {
+    updateGlobal();
+  }
 
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1904,6 +2313,8 @@ function getDefaultShopItems() {
 
 function shopGetItem(id) { return shopItems.find(i => i.id === id); }
 
+let _outletsFirstRender = true;
+
 function renderOutlets() {
   // shopLoad() removido de acá — solo se carga al init para no pisar cambios en memoria
   const panel = document.getElementById('panel-outlets');
@@ -1938,6 +2349,15 @@ function renderOutlets() {
     const currentDay = typeof currentOutletDay !== 'undefined' ? currentOutletDay : 0;
     setTimeout(() => initDayMap(currentDay), 100);
   }
+
+  // Apply slideIn animation only on the first render
+  if (_outletsFirstRender) {
+    _outletsFirstRender = false;
+    panel.querySelectorAll('.stop-card').forEach((card, i) => {
+      card.style.animation = `slideIn .3s ease both`;
+      card.style.animationDelay = `${i * 0.04}s`;
+    });
+  }
 }
 
 
@@ -1968,7 +2388,7 @@ function renderDayContent(d) {
         </div>
         <div class="hotel-arrow">↗</div>
       </a>
-      <button class="wm-icon-btn" onclick="openHotelEdit()" title="Editar dirección" style="flex-shrink:0;font-size:14px;opacity:0.4">✏️</button>
+      <button class="wm-icon-btn" onclick="openHotelEdit()" title="Editar dirección" aria-label="Editar punto de partida" style="flex-shrink:0;font-size:14px;opacity:0.4">✏️</button>
     </div>`;
 
   // Editable day label
@@ -2045,8 +2465,8 @@ function renderDayContent(d) {
           ondragover="stopDragOver(${d},${i},event)"
           ondragend="stopDragEnd(event)"
           ondrop="stopDrop(${d},${i},event)"
-          onclick="toggleStop(${d},${i})" style="animation-delay:${i*0.04}s">
-          <div class="stop-drag-handle" onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" title="Arrastrar para reordenar">⠿</div>
+          onclick="toggleStop(${d},${i})">
+          <div class="stop-drag-handle" onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" title="Arrastrar para reordenar" aria-label="Arrastrar para reordenar" role="button">⠿</div>
           <div class="stop-num">${isV ? '✓' : i+1}</div>
           <div class="stop-body">
             <div class="stop-name">${s.name}</div>
@@ -2054,14 +2474,14 @@ function renderDayContent(d) {
             <div class="stop-footer">
               <div class="badges">${badge}</div>
               <div class="stop-footer-actions">
-                <button class="wm-icon-btn stop-action-btn" onclick="stopMoveUp(${d},${i},event)" title="Subir" ${i===0?'style="opacity:0.25;pointer-events:none"':''}>↑</button>
-                <button class="wm-icon-btn stop-action-btn" onclick="stopMoveDown(${d},${i},event)" title="Bajar" ${i===day.stops.length-1?'style="opacity:0.25;pointer-events:none"':''}>↓</button>
+                <button class="wm-icon-btn stop-action-btn" onclick="stopMoveUp(${d},${i},event)" title="Subir" aria-label="Mover parada arriba" ${i===0?'style="opacity:0.25;pointer-events:none"':''}>↑</button>
+                <button class="wm-icon-btn stop-action-btn" onclick="stopMoveDown(${d},${i},event)" title="Bajar" aria-label="Mover parada abajo" ${i===day.stops.length-1?'style="opacity:0.25;pointer-events:none"':''}>↓</button>
                 ${s.url ? `<a class="maps-btn" href="${s.url}" onclick="event.stopPropagation()">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
                   Maps
                 </a>` : ''}
-                <button class="wm-icon-btn stop-action-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada">✏️</button>
-                <button class="wm-icon-btn wm-icon-del stop-action-btn" onclick="stopDelete(${d},${i},event)" title="Eliminar parada">✕</button>
+                <button class="wm-icon-btn stop-action-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada" aria-label="Editar ${s.name}">✏️</button>
+                <button class="wm-icon-btn wm-icon-del stop-action-btn" onclick="stopDelete(${d},${i},event)" title="Eliminar parada" aria-label="Eliminar ${s.name}">✕</button>
               </div>
             </div>
           </div>
@@ -2104,7 +2524,7 @@ function renderDayContent(d) {
         <div class="day-map-header" style="display:flex;align-items:center;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);">
           <div class="day-map-title">🗺️ Mapa del día · ${stopsWithCoords.length} paradas</div>
         </div>
-        <div id="day-map-container-${d}" style="height:280px;"></div>
+        <div id="day-map-container-${d}" class="day-map-container"></div>
       </div>`;
   }
 
@@ -2130,8 +2550,9 @@ function initDayMap(d) {
   if (!stopsWithCoords.length) return;
 
   _leafletMap = L.map(container, { zoomControl: true, attributionControl: false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
   }).addTo(_leafletMap);
 
   const bounds = [];
@@ -2196,8 +2617,15 @@ function stopCancelEdit() {
   renderOutlets();
 }
 function stopSaveEdit(dayIdx, stopIdx) {
-  const name = document.getElementById('stop-edit-name').value.trim();
-  if (!name) { alert('El nombre no puede estar vacío'); return; }
+  const nameEl = document.getElementById('stop-edit-name');
+  const name = nameEl.value.trim();
+  if (!name) {
+    nameEl.style.borderColor = '#e05c5c';
+    nameEl.focus();
+    nameEl.setAttribute('placeholder', '⚠ El nombre no puede estar vacío');
+    setTimeout(() => { nameEl.style.borderColor = ''; nameEl.placeholder = 'Nombre del lugar'; }, 2000);
+    return;
+  }
   days[dayIdx].stops[stopIdx] = {
     name,
     desc: document.getElementById('stop-edit-desc').value.trim(),
@@ -2219,9 +2647,10 @@ function stopSaveDayLabel(dayIdx) {
   renderOutlets();
   showMToast('Descripción guardada ✓');
 }
-function stopDelete(dayIdx, stopIdx, e) {
+async function stopDelete(dayIdx, stopIdx, e) {
   e && e.stopPropagation();
-  if (!confirm('¿Eliminar esta parada?')) return;
+  const ok = await showConfirm('¿Eliminar esta parada del cronograma?', '¿Eliminar parada?', 'Eliminar');
+  if (!ok) return;
   days[dayIdx].stops.splice(stopIdx, 1);
   // Rebuild visited set for this day to avoid index gaps
   const newVisited = new Set();
@@ -2243,8 +2672,15 @@ function stopCancelAdd() {
   renderOutlets();
 }
 function stopAddConfirm(dayIdx) {
-  const name = document.getElementById('stop-add-name').value.trim();
-  if (!name) { alert('Escribí el nombre del lugar'); return; }
+  const nameEl = document.getElementById('stop-add-name');
+  const name = nameEl.value.trim();
+  if (!name) {
+    nameEl.style.borderColor = '#e05c5c';
+    nameEl.focus();
+    nameEl.setAttribute('placeholder', '⚠ Escribí el nombre del lugar');
+    setTimeout(() => { nameEl.style.borderColor = ''; nameEl.placeholder = 'Nombre del lugar'; }, 2000);
+    return;
+  }
   days[dayIdx].stops.push({
     name,
     desc: document.getElementById('stop-add-desc').value.trim(),
@@ -2402,9 +2838,9 @@ function renderShopList() {
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
             <span style="width:8px;height:8px;border-radius:50%;background:${pColor};display:inline-block;flex-shrink:0" title="Prioridad ${item.priority}"></span>
-            <button class="wm-icon-btn" onclick="shopMoveItem('${item.id}',event)" title="${moveTitle}">${moveLabel}</button>
-            <button class="wm-icon-btn" onclick="shopStartEdit('${item.id}',event)">✏️</button>
-            <button class="wm-icon-btn wm-icon-del" onclick="shopDeleteItem('${item.id}',event)">✕</button>
+            <button class="wm-icon-btn" onclick="shopMoveItem('${item.id}',event)" title="${moveTitle}" aria-label="${moveTitle}">${moveLabel}</button>
+            <button class="wm-icon-btn" onclick="shopStartEdit('${item.id}',event)" title="Editar" aria-label="Editar ${item.name}">✏️</button>
+            <button class="wm-icon-btn wm-icon-del" onclick="shopDeleteItem('${item.id}',event)" title="Eliminar" aria-label="Eliminar ${item.name}">✕</button>
           </div>
         </div>`;
       }
@@ -2470,16 +2906,18 @@ function shopSaveEdit(id) {
   renderOutlets();
   showMToast('Guardado ✓');
 }
-function shopDeleteItem(id, e) {
+async function shopDeleteItem(id, e) {
   e && e.stopPropagation();
-  if (!confirm('¿Eliminar este ítem?')) return;
+  const ok = await showConfirm('¿Eliminar esta prenda de la lista?', '¿Eliminar ítem?', 'Eliminar');
+  if (!ok) return;
   shopItems = shopItems.filter(i => i.id !== id);
   shopChecked.delete(id);
   shopSave();
   renderOutlets();
 }
-function shopReset() {
-  if (!confirm('¿Reiniciar todos los checks de compras?')) return;
+async function shopReset() {
+  const ok = await showConfirm('Se van a desmarcar todas las prendas compradas.', '¿Reiniciar checks?', 'Reiniciar', true);
+  if (!ok) return;
   shopChecked.clear();
   shopSave();
   renderOutlets();
@@ -2492,16 +2930,25 @@ function shopOpenAddModal(tab) {
 function shopCloseAddModal() {
   document.getElementById('shopAddModal').classList.remove('open');
   ['shop-add-name','shop-add-size','shop-add-store'].forEach(id => {
-    const el = document.getElementById(id); if(el) el.value='';
+    const el = document.getElementById(id); if(el) { el.value=''; el.classList.remove('error'); }
   });
+  const err = document.getElementById('shop-add-name-err');
+  if (err) err.classList.remove('show');
 }
 function shopAddItem() {
-  const name = document.getElementById('shop-add-name').value.trim();
+  const nameEl = document.getElementById('shop-add-name');
+  const name = nameEl.value.trim();
   const catId = document.getElementById('shop-add-cat').value;
   const size = document.getElementById('shop-add-size').value.trim();
   const store = document.getElementById('shop-add-store').value.trim();
   const priority = document.getElementById('shop-add-prio').value;
-  if (!name) { alert('Escribí el nombre'); return; }
+  if (!name) {
+    nameEl.classList.add('error');
+    const err = document.getElementById('shop-add-name-err');
+    if (err) err.classList.add('show');
+    nameEl.focus();
+    return;
+  }
   const needIt = (window._shopAddTab || 'need') === 'need';
   const newItem = { id:'shop-'+Date.now(), catId, name, size, store, priority, needIt };
   shopItems.push(newItem);
@@ -2512,14 +2959,617 @@ function shopAddItem() {
   showMToast('Prenda agregada ✓');
 }
 
+// ─── PARQUES ───────────────────────────────────────────────
+const PARQUES_KEY = 'parkTracker_v2';
+let parquesState = {};
+
+function parquesLoad() {
+  if (window._parquesFromFb) { parquesState = window._parquesFromFb; return; }
+  try {
+    const d = localStorage.getItem(PARQUES_KEY);
+    if (d) parquesState = JSON.parse(d);
+  } catch(e) {}
+}
+
+function parquesSave() {
+  try { localStorage.setItem(PARQUES_KEY, JSON.stringify(parquesState)); } catch(e) {}
+  window._fb && window._fb.fbSet('parques', { state: parquesState });
+}
+
+function pkKey(parkId, zoneIdx, attrIdx) { return `${parkId}_${zoneIdx}_${attrIdx}`; }
+function pkDone(parkId, zoneIdx, attrIdx) { return !!parquesState[pkKey(parkId, zoneIdx, attrIdx)]; }
+
+function toggleAttraction(parkId, zoneIdx, attrIdx) {
+  const k = pkKey(parkId, zoneIdx, attrIdx);
+  parquesState[k] = !parquesState[k];
+  parquesSave();
+  // Actualizar pin en mapa sin re-renderizar todo
+  const mapInst = _parkMaps[parkId];
+  if (mapInst) {
+    const park = PARKS_DATA.find(p => p.id === parkId);
+    const attr = park?.zones[zoneIdx]?.attractions[attrIdx];
+    const globalIdx = park ? (() => { let idx=0; for(let zi=0;zi<zoneIdx;zi++) idx+=park.zones[zi].attractions.length; return idx+attrIdx; })() : -1;
+    const markerObj = mapInst._markers && mapInst._markers[globalIdx];
+    if (markerObj && attr) {
+      const isDone = !!parquesState[k];
+      const color = PARK_COLORS[parkId] || '#a78bfa';
+      markerObj.setIcon(makeParkPin(color, isDone, attr.name));
+    }
+  }
+  renderParques();
+}
+
+function pkCountPark(park) {
+  let done = 0, total = 0;
+  park.zones.forEach((z, zi) => z.attractions.forEach((_, ai) => { total++; if (pkDone(park.id, zi, ai)) done++; }));
+  return { done, total };
+}
+
+function pkCountAll() {
+  let done = 0, total = 0;
+  PARKS_DATA.forEach(p => { const c = pkCountPark(p); done += c.done; total += c.total; });
+  return { done, total };
+}
+
+function updateParquesCounter() {
+  const { done, total } = pkCountAll();
+  document.getElementById('global-counter').textContent = done + ' / ' + total;
+}
+
+let pkFilter = 'all';
+let pkOpenCards = new Set(['mk','epcot','hs','ioa','usf','epic']);
+
+const PARKS_DATA = [
+  {
+    id: 'mk', name: 'Magic Kingdom', emoji: '🏰', label: 'Walt Disney World', cls: 'pk-mk',
+    zones: [
+      { name: 'Main Street, U.S.A.', attractions: [
+        { name: 'Walt Disney World Railroad', lat: 28.4193, lng: -81.5808 },
+        { name: 'Town Square Theater (Meet Mickey)', lat: 28.4183, lng: -81.5808 },
+      ]},
+      { name: 'Adventureland', attractions: [
+        { name: 'Swiss Family Treehouse', lat: 28.4192, lng: -81.5829 },
+        { name: 'The Magic Carpets of Aladdin', lat: 28.4195, lng: -81.5832 },
+        { name: 'Jungle Cruise', lat: 28.4198, lng: -81.5838 },
+        { name: "Walt Disney's Enchanted Tiki Room", lat: 28.4193, lng: -81.5842 },
+        { name: 'Pirates of the Caribbean', lat: 28.4199, lng: -81.5844 },
+      ]},
+      { name: 'Frontierland', attractions: [
+        { name: "Tiana's Bayou Adventure", height: '40"/ 102 cm', lat: 28.4206, lng: -81.5848 },
+        { name: 'Big Thunder Mountain Railroad (temp. cerrada)', height: '40"/ 102 cm', lat: 28.4212, lng: -81.5852 },
+        { name: 'Country Bear Musical Jamboree', lat: 28.4202, lng: -81.5845 },
+      ]},
+      { name: 'Liberty Square', attractions: [
+        { name: 'The Hall of Presidents', lat: 28.4215, lng: -81.5832 },
+        { name: 'Haunted Mansion', lat: 28.4220, lng: -81.5827 },
+      ]},
+      { name: 'Fantasyland', attractions: [
+        { name: '"it\'s a small world"', lat: 28.4228, lng: -81.5820 },
+        { name: "Peter Pan's Flight", lat: 28.4224, lng: -81.5815 },
+        { name: 'Prince Charming Regal Carrousel', lat: 28.4220, lng: -81.5812 },
+        { name: "Mickey's PhilharMagic", lat: 28.4218, lng: -81.5808 },
+        { name: 'Princess Fairytale Hall', lat: 28.4222, lng: -81.5806 },
+        { name: 'The Many Adventures of Winnie the Pooh', lat: 28.4225, lng: -81.5803 },
+        { name: 'Seven Dwarfs Mine Train', height: '38"/ 97 cm', lat: 28.4228, lng: -81.5800 },
+        { name: 'Enchanted Tales with Belle', lat: 28.4231, lng: -81.5797 },
+        { name: 'Under the Sea – Journey of The Little Mermaid', lat: 28.4234, lng: -81.5794 },
+        { name: 'Meet Ariel at Her Grotto', lat: 28.4235, lng: -81.5792 },
+        { name: 'The Barnstormer', height: '35"/ 89 cm', lat: 28.4237, lng: -81.5798 },
+        { name: 'Dumbo the Flying Elephant', lat: 28.4239, lng: -81.5803 },
+        { name: 'Mad Tea Party', lat: 28.4236, lng: -81.5808 },
+        { name: 'Meet Mirabel at Fairytale Garden', lat: 28.4233, lng: -81.5812 },
+      ]},
+      { name: 'Tomorrowland', attractions: [
+        { name: 'TRON Lightcycle / Run', height: '48"/ 122 cm', lat: 28.4232, lng: -81.5778 },
+        { name: 'Tomorrowland Speedway', height: '32"/ 81 cm (solo) / 54"/ 137 cm (conducir)', lat: 28.4236, lng: -81.5782 },
+        { name: 'Space Mountain', height: '44"/ 112 cm', lat: 28.4230, lng: -81.5790 },
+        { name: 'Astro Orbiter', lat: 28.4218, lng: -81.5798 },
+        { name: 'Tomorrowland Transit Authority PeopleMover', lat: 28.4222, lng: -81.5795 },
+        { name: "Walt Disney's Carousel of Progress", lat: 28.4225, lng: -81.5785 },
+        { name: "Buzz Lightyear's Space Ranger Spin", lat: 28.4215, lng: -81.5793 },
+        { name: 'Monsters, Inc. Laugh Floor', lat: 28.4213, lng: -81.5789 },
+        { name: "Pete's Silly Sideshow", lat: 28.4240, lng: -81.5795 },
+      ]},
+    ]
+  },
+  {
+    id: 'epcot', name: 'EPCOT', emoji: '🌍', label: 'Walt Disney World', cls: 'pk-epcot',
+    zones: [
+      { name: 'World Celebration', attractions: [
+        { name: 'Spaceship Earth', lat: 28.3747, lng: -81.5494 },
+        { name: 'Meet Mickey & Friends', lat: 28.3742, lng: -81.5490 },
+        { name: 'Disney & Pixar Short Film Festival', lat: 28.3738, lng: -81.5498 },
+        { name: 'Journey Into Imagination With Figment', lat: 28.3730, lng: -81.5510 },
+      ]},
+      { name: 'World Discovery', attractions: [
+        { name: 'Guardians of the Galaxy: Cosmic Rewind', height: '42"/ 107 cm', lat: 28.3752, lng: -81.5480 },
+        { name: 'Mission: SPACE – Green Mission', height: '40"/ 102 cm', lat: 28.3748, lng: -81.5476 },
+        { name: 'Mission: SPACE – Orange Mission', height: '44"/ 112 cm', lat: 28.3748, lng: -81.5474 },
+        { name: 'REIMAGINED! Test Track', height: '40"/ 102 cm', lat: 28.3753, lng: -81.5472 },
+      ]},
+      { name: 'World Nature', attractions: [
+        { name: 'Journey of Water, Inspired by Moana', lat: 28.3740, lng: -81.5470 },
+        { name: 'Awesome Planet', lat: 28.3736, lng: -81.5508 },
+        { name: "Soarin'", height: '40"/ 102 cm', lat: 28.3730, lng: -81.5519 },
+        { name: 'Living with the Land', lat: 28.3726, lng: -81.5518 },
+        { name: 'The Seas with Nemo & Friends', lat: 28.3722, lng: -81.5512 },
+        { name: 'Turtle Talk with Crush', lat: 28.3720, lng: -81.5510 },
+        { name: 'SeaBase Aquarium', lat: 28.3719, lng: -81.5508 },
+      ]},
+      { name: 'World Showcase', attractions: [
+        { name: 'Gran Fiesta Tour Starring The Three Caballeros (México)', lat: 28.3695, lng: -81.5520 },
+        { name: 'Meet Anna and Elsa at Royal Sommerhus (Noruega)', lat: 28.3692, lng: -81.5510 },
+        { name: 'Frozen Ever After (Noruega)', lat: 28.3690, lng: -81.5508 },
+        { name: 'Reflections of China', lat: 28.3686, lng: -81.5490 },
+        { name: 'The American Adventure', lat: 28.3682, lng: -81.5493 },
+        { name: 'Palais du Cinéma (Francia)', lat: 28.3676, lng: -81.5478 },
+        { name: 'Beauty and the Beast Sing-Along (Francia)', lat: 28.3675, lng: -81.5476 },
+        { name: 'Impressions de France (Francia)', lat: 28.3674, lng: -81.5474 },
+        { name: "Remy's Ratatouille Adventure (Francia)", lat: 28.3673, lng: -81.5472 },
+        { name: 'Canada Far and Wide in Circle-Vision 360', lat: 28.3698, lng: -81.5530 },
+      ]},
+    ]
+  },
+  {
+    id: 'hs', name: 'Hollywood Studios', emoji: '🎬', label: 'Walt Disney World', cls: 'pk-hs',
+    zones: [
+      { name: 'Hollywood Boulevard', attractions: [
+        { name: "Mickey & Minnie's Runaway Railway", lat: 28.3579, lng: -81.5601 },
+      ]},
+      { name: 'Echo Lake', attractions: [
+        { name: "Indiana Jones™ Epic Stunt Spectacular!", lat: 28.3571, lng: -81.5612 },
+        { name: 'Star Tours – The Adventures Continue', height: '40"/ 102 cm', lat: 28.3568, lng: -81.5617 },
+        { name: 'Vacation Fun (Animated Short)', lat: 28.3565, lng: -81.5610 },
+        { name: 'For the First Time in Forever: A "Frozen" Sing-Along Celebration', lat: 28.3563, lng: -81.5608 },
+      ]},
+      { name: 'Commissary Lane', attractions: [
+        { name: 'Meet Mickey and Minnie at Red Carpet Dreams', lat: 28.3572, lng: -81.5598 },
+      ]},
+      { name: "Star Wars: Galaxy's Edge", attractions: [
+        { name: 'Star Wars: Rise of the Resistance', height: '40"/ 102 cm', lat: 28.3556, lng: -81.5635 },
+        { name: "Millennium Falcon: Smugglers Run", height: '38"/ 97 cm', lat: 28.3561, lng: -81.5630 },
+      ]},
+      { name: 'Toy Story Land', attractions: [
+        { name: 'Alien Swirling Saucers', height: '32"/ 81 cm', lat: 28.3551, lng: -81.5605 },
+        { name: 'Slinky Dog Dash', height: '38"/ 97 cm', lat: 28.3548, lng: -81.5610 },
+        { name: 'Toy Story Mania!', lat: 28.3554, lng: -81.5598 },
+      ]},
+      { name: 'Animation Courtyard', attractions: [
+        { name: 'Walt Disney Presents', lat: 28.3576, lng: -81.5624 },
+        { name: 'The Little Mermaid – A Musical Adventure', lat: 28.3578, lng: -81.5627 },
+      ]},
+      { name: 'Sunset Boulevard', attractions: [
+        { name: 'Disney Villains: Unfairly Ever After', lat: 28.3560, lng: -81.5589 },
+        { name: "Rock 'n' Roller Coaster® Starring Aerosmith", height: '48"/ 122 cm', lat: 28.3557, lng: -81.5585 },
+        { name: 'The Twilight Zone Tower of Terror™', height: '40"/ 102 cm', lat: 28.3554, lng: -81.5581 },
+        { name: 'Fantasmic!', lat: 28.3548, lng: -81.5576 },
+        { name: 'Beauty and the Beast – Live on Stage', lat: 28.3562, lng: -81.5593 },
+      ]},
+      { name: 'Pixar Plaza', attractions: [
+        { name: 'Meet Edna Mode at the Edna Mode Experience', lat: 28.3567, lng: -81.5595 },
+      ]},
+    ]
+  },
+  {
+    id: 'ioa', name: 'Islands of Adventure', emoji: '🦖', label: 'Universal Orlando', cls: 'pk-ioa',
+    zones: [
+      { name: 'Marvel Super Hero Island', attractions: [
+        { name: 'The Incredible Hulk Coaster®', height: '54"/ 138 cm', lat: 28.4720, lng: -81.4690 },
+        { name: 'Storm Force Accelatron®', lat: 28.4718, lng: -81.4688 },
+        { name: "Doctor Doom's Fearfall®", height: '52"/ 133 cm', lat: 28.4715, lng: -81.4692 },
+        { name: 'The Amazing Adventures of Spider-Man®', height: '40"/ 102 cm', lat: 28.4713, lng: -81.4695 },
+        { name: 'Meet the Marvel Super Heroes', lat: 28.4712, lng: -81.4698 },
+      ]},
+      { name: 'Toon Lagoon', attractions: [
+        { name: 'Classic Comic Strip Characters', lat: 28.4710, lng: -81.4710 },
+        { name: 'Me Ship, The Olive®', lat: 28.4707, lng: -81.4715 },
+        { name: "Popeye & Bluto's Bilge-Rat Barges®", height: '42"/ 107 cm', lat: 28.4705, lng: -81.4718 },
+        { name: "Dudley Do-Right's Ripsaw Falls®", height: '44"/ 112 cm', lat: 28.4703, lng: -81.4720 },
+      ]},
+      { name: 'Skull Island: Reign of Kong', attractions: [
+        { name: 'Skull Island: Reign of Kong', height: '36"/ 92 cm', lat: 28.4700, lng: -81.4728 },
+      ]},
+      { name: 'Jurassic Park', attractions: [
+        { name: 'Camp Jurassic', lat: 28.4698, lng: -81.4738 },
+        { name: 'Pteranodon Flyers', height: '36"–56"/ 92–143 cm', lat: 28.4695, lng: -81.4742 },
+        { name: 'Jurassic Park River Adventure', height: '42"/ 107 cm', lat: 28.4692, lng: -81.4745 },
+        { name: 'Raptor Encounter', lat: 28.4690, lng: -81.4748 },
+        { name: 'Jurassic Park Discovery Center', lat: 28.4688, lng: -81.4751 },
+        { name: 'Jurassic World VelociCoaster', height: '51"/ 130 cm', lat: 28.4685, lng: -81.4755 },
+      ]},
+      { name: 'The Wizarding World of Harry Potter – Hogsmeade', attractions: [
+        { name: 'Harry Potter and the Forbidden Journey™', height: '48"/ 122 cm', lat: 28.4682, lng: -81.4762 },
+        { name: 'Flight of the Hippogriff™', height: '36"/ 92 cm', lat: 28.4680, lng: -81.4765 },
+        { name: 'Frog Choir / Triwizard Spirit Rally', lat: 28.4678, lng: -81.4768 },
+        { name: 'Ollivanders™', lat: 28.4676, lng: -81.4770 },
+        { name: "Hagrid's Magical Creatures Motorbike Adventure™", height: '48"/ 122 cm', lat: 28.4674, lng: -81.4773 },
+        { name: 'Hogwarts™ Express – Hogsmeade™ Station', lat: 28.4672, lng: -81.4776 },
+      ]},
+      { name: 'The Lost Continent', attractions: [
+        { name: 'The Mystic Fountain', lat: 28.4670, lng: -81.4782 },
+      ]},
+      { name: 'Seuss Landing', attractions: [
+        { name: 'The High in the Sky Seuss Trolley Train Ride!™', height: '36"/ 92 cm', lat: 28.4668, lng: -81.4790 },
+        { name: 'Caro-Seuss-el™', lat: 28.4666, lng: -81.4792 },
+        { name: "Oh! The Stories You'll Hear!™", lat: 28.4664, lng: -81.4795 },
+        { name: 'Dr. Seuss Character Zone', lat: 28.4662, lng: -81.4798 },
+        { name: 'One Fish, Two Fish, Red Fish, Blue Fish™', lat: 28.4660, lng: -81.4800 },
+        { name: 'The Cat in the Hat™', height: '36"/ 92 cm', lat: 28.4658, lng: -81.4802 },
+        { name: "If I Ran The Zoo™", lat: 28.4656, lng: -81.4805 },
+      ]},
+    ]
+  },
+  {
+    id: 'usf', name: 'Universal Studios Florida', emoji: '🎭', label: 'Universal Orlando', cls: 'pk-usf',
+    zones: [
+      { name: 'Minion Land', attractions: [
+        { name: "Illumination's Villain-Con Minion Blast", lat: 28.4754, lng: -81.4668 },
+        { name: 'Despicable Me Minion Mayhem', height: '40"/ 102 cm', lat: 28.4758, lng: -81.4665 },
+        { name: 'Illumination Theater™', lat: 28.4756, lng: -81.4662 },
+      ]},
+      { name: 'New York', attractions: [
+        { name: 'Hollywood Rip Ride Rockit', height: '51"–79"/ 130–201 cm', lat: 28.4762, lng: -81.4655 },
+        { name: 'Meet The TRANSFORMERS™', lat: 28.4765, lng: -81.4652 },
+        { name: 'TRANSFORMERS™: The Ride-3D', height: '40"/ 102 cm', lat: 28.4768, lng: -81.4650 },
+        { name: 'Race Through New York Starring Jimmy Fallon', height: '40"/ 102 cm', lat: 28.4770, lng: -81.4648 },
+        { name: 'Marilyn & the Diamond Bellas', lat: 28.4772, lng: -81.4646 },
+        { name: 'Revenge of the Mummy', height: '48"/ 122 cm', lat: 28.4774, lng: -81.4644 },
+        { name: 'The Blues Brothers® Show', lat: 28.4776, lng: -81.4642 },
+        { name: 'Sing it!', lat: 28.4778, lng: -81.4640 },
+        { name: '¡Vamos! – Báilalo', lat: 28.4780, lng: -81.4638 },
+      ]},
+      { name: 'San Francisco', attractions: [
+        { name: 'Beat Builders', lat: 28.4784, lng: -81.4635 },
+        { name: 'Fast & Furious – Supercharged', height: '40"/ 102 cm', lat: 28.4786, lng: -81.4632 },
+      ]},
+      { name: 'The Wizarding World of Harry Potter – Diagon Alley', attractions: [
+        { name: "Hogwarts™ Express – King's Cross Station", lat: 28.4792, lng: -81.4625 },
+        { name: 'Knight Bus™', lat: 28.4794, lng: -81.4622 },
+        { name: 'Harry Potter and the Escape from Gringotts™', height: '42"/ 107 cm', lat: 28.4796, lng: -81.4618 },
+        { name: 'Ollivanders™', lat: 28.4798, lng: -81.4615 },
+        { name: 'Gringotts™ Money Exchange', lat: 28.4800, lng: -81.4612 },
+        { name: 'The Tales of Beedle the Bard™ / Celestina Warbeck and the Banshees', lat: 28.4802, lng: -81.4609 },
+      ]},
+      { name: 'World Expo', attractions: [
+        { name: 'MEN IN BLACK™ Alien Attack™', height: '42"/ 107 cm', lat: 28.4806, lng: -81.4605 },
+      ]},
+      { name: 'Springfield, U.S.A.: Home of the Simpsons', attractions: [
+        { name: 'The Simpsons Ride™', height: '40"/ 102 cm', lat: 28.4810, lng: -81.4600 },
+        { name: "Kang & Kodos' Twirl 'n' Hurl", lat: 28.4812, lng: -81.4598 },
+      ]},
+      { name: "Woody Woodpecker's KidZone", attractions: [
+        { name: 'Animal Actors on Location!', lat: 28.4816, lng: -81.4594 },
+        { name: 'E.T. Adventure', height: '34"/ 87 cm', lat: 28.4818, lng: -81.4592 },
+        { name: 'Meet SpongeBob SquarePants and Friends', lat: 28.4820, lng: -81.4590 },
+      ]},
+      { name: 'Hollywood', attractions: [
+        { name: 'NBC Media Center', lat: 28.4824, lng: -81.4586 },
+        { name: 'Drive In and Dance', lat: 28.4826, lng: -81.4584 },
+        { name: 'Character Party Zone', lat: 28.4828, lng: -81.4582 },
+        { name: "Universal Orlando's Horror Make-Up Show", lat: 28.4830, lng: -81.4580 },
+        { name: 'Hollywood Character Zone', lat: 28.4832, lng: -81.4578 },
+        { name: 'The Bourne Stuntacular', lat: 28.4834, lng: -81.4576 },
+      ]},
+    ]
+  },
+  {
+    id: 'epic', name: 'Epic Universe', emoji: '✨', label: 'Universal Orlando', cls: 'pk-epic',
+    zones: [
+      { name: 'Celestial Park', attractions: [
+        { name: 'Stardust Racers', height: '48"/ 122 cm', lat: 28.4610, lng: -81.4625 },
+        { name: 'Constellation Carousel', lat: 28.4608, lng: -81.4622 },
+        { name: 'Astronomica', lat: 28.4606, lng: -81.4620 },
+      ]},
+      { name: 'Super Nintendo World™', attractions: [
+        { name: "Mario Kart™: Bowser's Challenge", height: '40"/ 102 cm', lat: 28.4598, lng: -81.4635 },
+        { name: 'Mine-Cart Madness™', height: '40"/ 102 cm', lat: 28.4596, lng: -81.4638 },
+        { name: "Yoshi's Adventure™", height: '34"/ 87 cm', lat: 28.4594, lng: -81.4641 },
+        { name: 'Mario & Luigi Meet & Greet', lat: 28.4592, lng: -81.4644 },
+        { name: 'Princess Peach Meet & Greet', lat: 28.4590, lng: -81.4647 },
+        { name: 'Toad Meet & Greet', lat: 28.4588, lng: -81.4650 },
+        { name: 'Donkey Kong Meet & Greet', lat: 28.4586, lng: -81.4653 },
+      ]},
+      { name: 'Dark Universe', attractions: [
+        { name: 'Monsters Unchained: The Frankenstein Experiment', height: '48"/ 122 cm', lat: 28.4580, lng: -81.4615 },
+        { name: 'Curse of the Werewolf', height: '40"/ 102 cm', lat: 28.4578, lng: -81.4612 },
+        { name: 'Dark Universe Character Meet & Greet', lat: 28.4576, lng: -81.4609 },
+        { name: 'Darkmoor Monster Makeup Experience', lat: 28.4574, lng: -81.4606 },
+      ]},
+      { name: 'The Wizarding World of Harry Potter – Ministry of Magic', attractions: [
+        { name: 'Harry Potter and the Battle at the Ministry™', height: '40"/ 102 cm', lat: 28.4568, lng: -81.4620 },
+        { name: 'Le Cirque Arcanus™', lat: 28.4566, lng: -81.4623 },
+        { name: 'Cosme Acajor Baguettes Magique™', lat: 28.4564, lng: -81.4626 },
+      ]},
+      { name: 'How to Train Your Dragon – Isle of Berk', attractions: [
+        { name: "Hiccup's Wing Gliders", height: '40"/ 102 cm', lat: 28.4558, lng: -81.4635 },
+        { name: "Dragon Racer's Rally", height: '48"/ 122 cm', lat: 28.4556, lng: -81.4638 },
+        { name: 'Fyre Drill', lat: 28.4554, lng: -81.4641 },
+        { name: 'The Untrainable Dragon', lat: 28.4552, lng: -81.4644 },
+        { name: 'Viking Training Camp', lat: 28.4550, lng: -81.4647 },
+        { name: 'Meet Toothless and Friends', lat: 28.4548, lng: -81.4650 },
+      ]},
+    ]
+  },
+];
+
+function pkToggleCard(id) {
+  const wasOpen = pkOpenCards.has(id);
+  if (wasOpen) {
+    pkOpenCards.delete(id);
+    // Destruir mapa al colapsar para evitar grises
+    if (_parkMaps[id]) {
+      _parkMaps[id].remove();
+      delete _parkMaps[id];
+    }
+  } else {
+    pkOpenCards.add(id);
+  }
+  renderParques();
+  // Si se abre, inicializar mapa después del render
+  if (!wasOpen) {
+    setTimeout(() => initParkMap(id), 80);
+  }
+}
+
+function pkSetFilter(id) {
+  pkFilter = id;
+  renderParques();
+}
+
+async function pkResetAll() {
+  const ok = await showConfirm('Se va a borrar todo el progreso de atracciones. ¿Confirmás?', '¿Reiniciar Parques?', 'Reiniciar', true);
+  if (!ok) return;
+  parquesState = {};
+  parquesSave();
+  renderParques();
+  updateParquesCounter();
+}
+
+const pkFilterMeta = [
+  { id: 'all',  label: '🎡 Todos' },
+  { id: 'mk',   label: '🏰 Magic Kingdom' },
+  { id: 'epcot',label: '🌍 EPCOT' },
+  { id: 'hs',   label: '🎬 Hollywood Studios' },
+  { id: 'ioa',  label: '🦖 Islands of Adventure' },
+  { id: 'usf',  label: '🎭 Universal Studios' },
+  { id: 'epic', label: '✨ Epic Universe' },
+];
+
+// ─── PARK MAPS ─────────────────────────────────────────────
+const PARK_COLORS = {
+  mk:   '#c084fc',
+  epcot:'#4dd0c4',
+  hs:   '#ff7675',
+  ioa:  '#69f0ae',
+  usf:  '#64b5f6',
+  epic: '#ce93d8',
+};
+
+let _parkMaps = {};
+let _pkMapOpen = {};
+
+function makeParkPin(color, isDone, label) {
+  const bg   = isDone ? 'transparent' : color;
+  const border = isDone ? color : 'rgba(255,255,255,0.25)';
+  const textColor = isDone ? color : '#0e0e10';
+  const check = isDone ? '✓' : '';
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:26px;height:26px;border-radius:50%;
+      background:${bg};
+      color:${textColor};
+      display:flex;align-items:center;justify-content:center;
+      font-family:'Syne',sans-serif;font-weight:800;font-size:13px;
+      border:2px solid ${border};
+      box-shadow:0 2px 8px rgba(0,0,0,0.5);
+      opacity:${isDone ? '0.7' : '1'};
+      transition:all .2s;
+    ">${check}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -16]
+  });
+}
+
+function pkToggleParkMap(parkId) {
+  const container = document.getElementById(`pkmap-container-${parkId}`);
+  const chev = document.getElementById(`pkmap-chev-${parkId}`);
+  const wrap = document.getElementById(`pkmap-wrap-${parkId}`);
+  if (!container) return;
+
+  const isOpen = container.style.display !== 'none';
+  if (isOpen) {
+    container.style.display = 'none';
+    if (chev) chev.style.transform = '';
+    if (wrap) wrap.classList.remove('open');
+    if (_parkMaps[parkId]) {
+      _parkMaps[parkId].remove();
+      delete _parkMaps[parkId];
+    }
+  } else {
+    container.style.display = 'block';
+    if (chev) chev.style.transform = 'rotate(180deg)';
+    if (wrap) wrap.classList.add('open');
+    setTimeout(() => initParkMap(parkId), 80);
+  }
+}
+
+function initParkMap(parkId) {
+  const container = document.getElementById(`pkmap-container-${parkId}`);
+  if (!container || container.style.display === 'none') return;
+
+  // Destruir instancia previa si existe
+  if (_parkMaps[parkId]) {
+    _parkMaps[parkId].remove();
+    delete _parkMaps[parkId];
+  }
+  container.innerHTML = '';
+
+  const park = PARKS_DATA.find(p => p.id === parkId);
+  if (!park) return;
+
+  const color = PARK_COLORS[parkId] || '#a78bfa';
+  const map = L.map(container, { zoomControl: true, attributionControl: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  const bounds = [];
+  const markers = [];
+  let globalIdx = 0;
+
+  park.zones.forEach((zone, zi) => {
+    zone.attractions.forEach((attr, ai) => {
+      if (!attr.lat || !attr.lng) { globalIdx++; return; }
+      const isDone = pkDone(parkId, zi, ai);
+      const icon = makeParkPin(color, isDone, attr.name);
+
+      const heightHtml = attr.height
+        ? `<div style="font-size:10px;color:#a78bfa;font-weight:600;margin-top:2px">↑ ${attr.height}</div>`
+        : '';
+      const doneHtml = isDone
+        ? `<div style="margin-top:5px;font-size:11px;color:#4ecb8d">✓ Completada</div>`
+        : '';
+
+      const marker = L.marker([attr.lat, attr.lng], { icon })
+        .bindPopup(`
+          <div class="map-popup-name">${attr.name}</div>
+          <div class="map-popup-desc">${zone.name}</div>
+          ${heightHtml}
+          ${doneHtml}
+        `, { maxWidth: 200 })
+        .addTo(map);
+
+      markers[globalIdx] = marker;
+      bounds.push([attr.lat, attr.lng]);
+      globalIdx++;
+    });
+  });
+
+  if (bounds.length > 0) {
+    map.fitBounds(bounds, { padding: [28, 28] });
+  }
+
+  map._markers = markers;
+  _parkMaps[parkId] = map;
+  setTimeout(() => map && map.invalidateSize(), 150);
+}
+
+// Inicializar mapas de parques que están abiertos al renderizar
+function initOpenParkMaps() {
+  pkOpenCards.forEach(parkId => {
+    setTimeout(() => initParkMap(parkId), 120);
+  });
+}
+
+function renderParques() {
+  const panel = document.getElementById('panel-parques');
+  const { done: gDone, total: gTotal } = pkCountAll();
+  const gPct = gTotal > 0 ? Math.round(gDone / gTotal * 100) : 0;
+
+  let html = `<div class="parques-panel">
+    <div class="parques-global-bar">
+      <div class="parques-global-nums">
+        <div class="parques-global-count">${gDone}</div>
+        <div class="parques-global-lbl">de ${gTotal}</div>
+      </div>
+      <div class="parques-global-right">
+        <div class="parques-global-title">Atracciones completadas</div>
+        <div class="parques-prog-bg"><div class="parques-prog-fill" style="width:${gPct}%"></div></div>
+      </div>
+    </div>
+    <div class="parques-filter-bar">`;
+
+  pkFilterMeta.forEach(f => {
+    html += `<button class="parques-filter-btn${pkFilter===f.id?' active':''}" onclick="pkSetFilter('${f.id}')">${f.label}</button>`;
+  });
+  html += `</div>`;
+
+  PARKS_DATA.forEach(park => {
+    const visible = pkFilter === 'all' || pkFilter === park.id;
+    const { done, total } = pkCountPark(park);
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+    const isOpen = pkOpenCards.has(park.id);
+
+    html += `<div class="park-card ${park.cls}${!visible ? ' pk-hidden' : ''}${isOpen ? ' open' : ''}" id="pkcard-${park.id}">
+      <div class="park-card-header" onclick="pkToggleCard('${park.id}')">
+        <span class="park-card-emoji">${park.emoji}</span>
+        <div class="park-card-info">
+          <div class="park-card-name">${park.name}</div>
+          <div class="park-card-label">${park.label}</div>
+        </div>
+        <div class="park-card-right">
+          <span class="park-card-count">${done}/${total}</span>
+          <div class="park-mini-bar-bg"><div class="park-mini-bar-fill" style="width:${pct}%"></div></div>
+          <span class="park-card-chevron">▾</span>
+        </div>
+      </div>
+      <div class="park-card-body">`;
+
+    park.zones.forEach((zone, zi) => {
+      html += `<div class="park-zone-title">${zone.name}</div>`;
+      zone.attractions.forEach((attr, ai) => {
+        const done = pkDone(park.id, zi, ai);
+        html += `<div class="park-attr-item${done ? ' pk-done' : ''}" onclick="toggleAttraction('${park.id}',${zi},${ai})">
+          <div class="park-attr-check">${done ? '✓' : ''}</div>
+          <div class="park-attr-body">
+            <div class="park-attr-name">${attr.name}</div>
+            ${attr.height ? `<div class="park-attr-height">↑ ${attr.height}</div>` : ''}
+          </div>
+        </div>`;
+      });
+    });
+
+    // Mapa colapsable por parque
+    const parkAttrsWithCoords = park.zones.flatMap(z => z.attractions).filter(a => a.lat && a.lng);
+    if (parkAttrsWithCoords.length > 0) {
+      html += `
+        <div class="day-map-wrap" id="pkmap-wrap-${park.id}" style="margin:0;border-radius:0 0 var(--radius) var(--radius);border-top:1px solid var(--border);border-left:none;border-right:none;border-bottom:none;">
+          <div class="day-map-header" onclick="pkToggleParkMap('${park.id}')">
+            <div class="day-map-title">🗺️ Mapa · ${parkAttrsWithCoords.length} atracciones</div>
+            <span class="day-map-chevron" id="pkmap-chev-${park.id}">▾</span>
+          </div>
+          <div id="pkmap-container-${park.id}" class="day-map-container" style="display:none;height:280px;"></div>
+        </div>`;
+    }
+
+    html += `</div></div>`;
+  });
+
+  html += `<div class="parques-reset-row"><button class="wm-reset-btn" onclick="pkResetAll()">↺ Reiniciar todo</button></div>`;
+  html += `</div>`;
+  panel.innerHTML = html;
+  updateParquesCounter();
+  // Inicializar mapas para cards ya abiertas
+  setTimeout(() => {
+    pkOpenCards.forEach(parkId => {
+      // Solo si el container existe y está visible (card open)
+      const container = document.getElementById(`pkmap-container-${parkId}`);
+      if (container && container.style.display !== 'none' && !_parkMaps[parkId]) {
+        initParkMap(parkId);
+      }
+    });
+  }, 80);
+}
+
 </script>
 
 <button class="add-day-fab" id="addDayFab" onclick="openMealModal()">+ Agregar día</button>
 <div class="modal-bg" id="mealModal">
   <div class="modal-box">
     <h2>Agregar día</h2>
-    <div class="mform-group"><label>Fecha</label><input type="text" id="mDate" placeholder="ej: 29 ene"></div>
-    <div class="mform-group"><label>Título</label><input type="text" id="mTitle" placeholder="ej: Disney extra"></div>
+    <div class="mform-group">
+      <label>Fecha</label>
+      <input type="text" id="mDate" placeholder="ej: 29 ene" oninput="this.classList.remove('error');document.getElementById('mDate-err').classList.remove('show')">
+      <div class="field-error" id="mDate-err">Completá la fecha</div>
+    </div>
+    <div class="mform-group">
+      <label>Título</label>
+      <input type="text" id="mTitle" placeholder="ej: Disney extra" oninput="this.classList.remove('error');document.getElementById('mTitle-err').classList.remove('show')">
+      <div class="field-error" id="mTitle-err">Completá el título del día</div>
+    </div>
     <div class="mform-group"><label>Tipo</label>
       <select id="mType">
         <option value="disney">Disney 🏰</option>
@@ -2557,12 +3607,35 @@ function shopAddItem() {
 </div>
 <div class="mtoast" id="mtoast"></div>
 
+<!-- Custom confirm/alert modal -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirmTitle"></div>
+    <div class="confirm-msg" id="confirmMsg"></div>
+    <div class="confirm-actions">
+      <button class="confirm-btn-cancel" id="confirmCancel">Cancelar</button>
+      <button class="confirm-btn-ok" id="confirmOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+<!-- Custom alert modal -->
+<div class="confirm-overlay" id="alertOverlay">
+  <div class="confirm-box">
+    <div class="confirm-title" id="alertTitle">Atención</div>
+    <div class="confirm-msg" id="alertMsg"></div>
+    <div class="confirm-actions" style="justify-content:center">
+      <button class="confirm-btn-ok safe" id="alertOk" style="flex:unset;min-width:120px" onclick="closeAlert()">Entendido</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="wmAddModal">
   <div class="modal-box">
     <h2>Agregar producto</h2>
     <div class="mform-group">
       <label>Nombre</label>
-      <input type="text" id="wm-add-name" placeholder="ej: Mantequilla de maní">
+      <input type="text" id="wm-add-name" placeholder="ej: Mantequilla de maní" oninput="this.classList.remove('error');document.getElementById('wm-add-name-err').classList.remove('show')">
+      <div class="field-error" id="wm-add-name-err">Escribí el nombre del producto</div>
     </div>
     <div class="mform-group">
       <label>Categoría</label>
@@ -2599,7 +3672,8 @@ function shopAddItem() {
     <h2>Agregar prenda / accesorio</h2>
     <div class="mform-group">
       <label>¿Qué querés comprar?</label>
-      <input type="text" id="shop-add-name" placeholder="ej: Zapatillas Nike Air Max">
+      <input type="text" id="shop-add-name" placeholder="ej: Zapatillas Nike Air Max" oninput="this.classList.remove('error');document.getElementById('shop-add-name-err').classList.remove('show')">
+      <div class="field-error" id="shop-add-name-err">Escribí qué querés comprar</div>
     </div>
     <div class="mform-group">
       <label>Categoría</label>
