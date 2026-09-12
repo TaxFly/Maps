@@ -65,7 +65,7 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
           </linearGradient>
         </defs>
       </svg>
-      <div style="position:absolute;inset:8px;border-radius:50%;background:#141d30;display:flex;align-items:center;justify-content:center;font-size:38px;box-shadow:0 8px 28px -6px rgba(37,99,235,.5);">🌴</div>
+      <div id="sp-emoji" style="position:absolute;inset:8px;border-radius:50%;background:#141d30;display:flex;align-items:center;justify-content:center;font-size:38px;box-shadow:0 8px 28px -6px rgba(37,99,235,.5);transition:opacity .22s ease,transform .22s ease;">🌴</div>
     </div>
 
     <div style="clip-path:inset(0 100% 0 0);opacity:0;
@@ -78,7 +78,7 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
         color:rgba(255,255,255,.4);letter-spacing:2.5px;text-transform:uppercase;
         text-align:center;white-space:nowrap;
         opacity:0;animation:spTagIn .45s ease .9s forwards;margin-top:12px;">
-      Viaje en familia · Enero
+      Tu próximo viaje, planeado
     </div>
   </div>
 </div>
@@ -94,14 +94,31 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
       +'animation:spTwinkle '+(2.5+Math.random()*3).toFixed(1)+'s '+(Math.random()*4).toFixed(1)+'s ease-in-out infinite;opacity:0;';
     starsEl.appendChild(s);
   }
-  var minEnd = Date.now() + 1100;
+  var minEnd = Date.now() + 2600;
   var pageLoaded = (document.readyState === 'complete');
   var fbReady = false;
   var hidden = false;
 
+  // Carrusel de emojis de vacaciones en el badge circular
+  var emojis = ['🌴','🏖️','✈️','☀️','🍹','🗺️','🎢','🩴'];
+  var emojiEl = document.getElementById('sp-emoji');
+  var emojiIdx = 0;
+  var emojiTimer = setInterval(function(){
+    if (!emojiEl) { clearInterval(emojiTimer); return; }
+    emojiEl.style.opacity = '0';
+    emojiEl.style.transform = 'scale(.7) rotate(-8deg)';
+    setTimeout(function(){
+      emojiIdx = (emojiIdx + 1) % emojis.length;
+      emojiEl.textContent = emojis[emojiIdx];
+      emojiEl.style.opacity = '1';
+      emojiEl.style.transform = 'scale(1) rotate(0deg)';
+    }, 220);
+  }, 550);
+
   function reallyHide(){
     if (hidden) return;
     hidden = true;
+    clearInterval(emojiTimer);
     var splash = document.getElementById('splash-screen');
     if (!splash) return;
     splash.style.opacity = '0';
@@ -123,7 +140,7 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
 
   // Red de seguridad: si Firebase tarda mucho u ofline, no dejar el splash
   // pegado para siempre.
-  setTimeout(function(){ fbReady = true; pageLoaded = true; tryHide(); }, 4000);
+  setTimeout(function(){ fbReady = true; pageLoaded = true; tryHide(); }, 6000);
 })();
 </script>
 
