@@ -57,24 +57,10 @@ function fbListen(docId, callback) {
 
 window._fb = { fbSet, fbGet, fbListen, stableStringify };
 
-function showSyncOverlay(show) {
-  let el = document.getElementById('sync-overlay');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'sync-overlay';
-    el.style.cssText = 'position:fixed;inset:0;background:#0f172a;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;';
-    el.innerHTML = '<div style="font-family:DM Sans,sans-serif;font-size:18px;font-weight:800;color:#60a5fa;">Orlando Planning</div><div style="font-size:13px;color:#94a3b8;">Sincronizando...</div><div class="sync-spinner"></div>';
-    const style = document.createElement('style');
-    style.textContent = '.sync-spinner{width:28px;height:28px;border:3px solid #273549;border-top-color:#60a5fa;border-radius:50%;animation:spin .7s linear infinite;}@keyframes spin{to{transform:rotate(360deg)}}';
-    document.head.appendChild(style);
-    document.body.appendChild(el);
-  }
-  el.style.display = show ? 'flex' : 'none';
-}
-
 async function startApp() {
-  showSyncOverlay(true);
-
+  // El splash lindo de index.html ya está en pantalla desde el arranque;
+  // acá solo esperamos los datos de Firebase, sin tapar nada con una
+  // pantalla extra.
   const results = await Promise.allSettled([
     fbGet('hotel'),
     fbGet('days'),
@@ -99,7 +85,7 @@ async function startApp() {
   if (parquesDataFb && parquesDataFb.state) window._parquesFromFb = parquesDataFb.state;
 
   window._fbReady = true;
-  showSyncOverlay(false);
+  window._splashFbReady && window._splashFbReady();
   if (window._appInit) window._appInit();
 
   // Realtime listeners

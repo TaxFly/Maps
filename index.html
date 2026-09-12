@@ -95,18 +95,35 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
     starsEl.appendChild(s);
   }
   var minEnd = Date.now() + 1100;
-  function hideSplash(){
-    var remaining = minEnd - Date.now();
-    setTimeout(function(){
-      var splash = document.getElementById('splash-screen');
-      if (!splash) return;
-      splash.style.opacity = '0';
-      setTimeout(function(){ splash.remove(); }, 400);
-    }, Math.max(0, remaining));
+  var pageLoaded = (document.readyState === 'complete');
+  var fbReady = false;
+  var hidden = false;
+
+  function reallyHide(){
+    if (hidden) return;
+    hidden = true;
+    var splash = document.getElementById('splash-screen');
+    if (!splash) return;
+    splash.style.opacity = '0';
+    setTimeout(function(){ splash.remove(); }, 400);
   }
-  if (document.readyState === 'complete') hideSplash();
-  else window.addEventListener('load', hideSplash);
-  setTimeout(hideSplash, 2500); // red de seguridad por si 'load' tarda (mapas, fuentes, etc.)
+  function tryHide(){
+    if (hidden || !pageLoaded || !fbReady) return;
+    var remaining = minEnd - Date.now();
+    setTimeout(reallyHide, Math.max(0, remaining));
+  }
+
+  // Se llama desde firebase-sync.js cuando terminó de traer los datos —
+  // así el splash lindo se queda en pantalla hasta que todo esté listo,
+  // en vez de taparse con la pantalla de "Sincronizando..." antigua.
+  window._splashFbReady = function(){ fbReady = true; tryHide(); };
+
+  if (pageLoaded) tryHide();
+  else window.addEventListener('load', function(){ pageLoaded = true; tryHide(); });
+
+  // Red de seguridad: si Firebase tarda mucho u ofline, no dejar el splash
+  // pegado para siempre.
+  setTimeout(function(){ fbReady = true; pageLoaded = true; tryHide(); }, 4000);
 })();
 </script>
 
