@@ -1419,14 +1419,44 @@ function escapeHtml(str) {
   }[ch]));
 }
 
+// ─── Guardado y carga sincronizados (localStorage + Firebase) ───
+// Los 6 módulos (hotel, días, comidas, Walmart, compras, parques) repetían
+// el mismo patrón: guardar en localStorage con try/catch, y subir el dato
+// a Firebase con su docId. Estos tres helpers concentran ese patrón.
+//
+// syncedSave: guarda `localValue` en `localKey` y sube `fbValue` (o
+// `localValue` si no se pasa uno distinto) al docId de Firebase. Se admite
+// una forma distinta para Firebase porque algunos módulos (ej. "días")
+// envuelven el dato de otra manera para cada destino.
+function syncedSave(localKey, localValue, docId, fbValue) {
+  try { localStorage.setItem(localKey, JSON.stringify(localValue)); } catch(e) {}
+  window._fb && window._fb.fbSet(docId, fbValue !== undefined ? fbValue : localValue);
+}
+
+// localLoad: lee y parsea un valor de localStorage. null si no existe o
+// está corrupto.
+function localLoad(localKey) {
+  try {
+    const raw = localStorage.getItem(localKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+// syncedLoad: prioriza el dato ya bajado de Firebase (pasado en `fbValue`,
+// típicamente `window._xFromFb`) por sobre lo que haya en localStorage,
+// igual que hacía cada módulo por separado.
+function syncedLoad(localKey, fbValue) {
+  return (fbValue !== undefined && fbValue !== null) ? fbValue : localLoad(localKey);
+}
+
 const HOTEL_KEY = 'orlando-hotel-v1';
 let hotel = { addr: "324 Newcastle Dr, Kissimmee FL 34746", url: "https://www.google.com/maps/search/?api=1&query=28.3223251,-81.4939467" };
 function hotelLoad() {
-  try { const d = localStorage.getItem(HOTEL_KEY); if(d) hotel = JSON.parse(d); } catch(e){}
+  const d = syncedLoad(HOTEL_KEY, window._hotelFromFb);
+  if (d) hotel = d;
 }
 function hotelSave() {
-  try { localStorage.setItem(HOTEL_KEY, JSON.stringify(hotel)); } catch(e){}
-  window._fb && window._fb.fbSet('hotel', hotel);
+  syncedSave(HOTEL_KEY, hotel, 'hotel');
 }
 hotelLoad();
 
@@ -1496,13 +1526,9 @@ let stopEditingIdx = null; // { dayIdx, stopIdx } or null
 let stopAddingDay = null;  // dayIdx or null
 
 function saveState() {
-  try {
-    const data = visited.map(s => [...s]);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    localStorage.setItem(DAYS_KEY, JSON.stringify(days));
-  } catch(e) {}
-  window._fb && window._fb.fbSet('visited', { visited: visited.map(s => [...s]) });
-  window._fb && window._fb.fbSet('days', { days: days, v: DAYS_VERSION });
+  const visitedArr = visited.map(s => [...s]);
+  syncedSave(STORAGE_KEY, visitedArr, 'visited', { visited: visitedArr });
+  syncedSave(DAYS_KEY, days, 'days', { days: days, v: DAYS_VERSION });
 }
 
 function loadState() {
@@ -1645,15 +1671,11 @@ if (window._fbReady) {
 // ─── COMIDAS ───────────────────────────────────────────────
 const MEAL_KEY = 'orlando-meals-v1';
 function mealSave() {
-  try { localStorage.setItem(MEAL_KEY, JSON.stringify(mealData)); } catch(e) {}
-  window._fb && window._fb.fbSet('meals', { meals: mealData });
+  syncedSave(MEAL_KEY, mealData, 'meals', { meals: mealData });
 }
 function mealLoad() {
-  if (window._mealsFromFb) { mealData = window._mealsFromFb; return; }
-  try {
-    const d = localStorage.getItem(MEAL_KEY);
-    if (d) mealData = JSON.parse(d);
-  } catch(e) {}
+  const d = syncedLoad(MEAL_KEY, window._mealsFromFb);
+  if (d) mealData = d;
 }
 
 window._setMealData = function(d) { mealData = d; };
@@ -2112,28 +2134,21 @@ let wmOpenSections = new Set(Object.keys(wmCatMeta));
 let wmEditingItem = null; // { catId, itemId } or null
 
 function wmSave() {
-  try {
-    localStorage.setItem(WM_DATA_KEY, JSON.stringify(wmData));
-    localStorage.setItem(WM_CHECKED_KEY, JSON.stringify([...wmChecked]));
-    localStorage.setItem(WM_OPEN_KEY, JSON.stringify([...wmOpenSections]));
-  } catch(e){}
-  window._fb && window._fb.fbSet('walmart', { data: wmData });
-  window._fb && window._fb.fbSet('wmChecked', { checked: [...wmChecked] });
+  syncedSave(WM_DATA_KEY, wmData, 'walmart', { data: wmData });
+  syncedSave(WM_CHECKED_KEY, [...wmChecked], 'wmChecked', { checked: [...wmChecked] });
+  // wmOpenSections es solo de UI local, no se sincroniza con Firebase.
+  try { localStorage.setItem(WM_OPEN_KEY, JSON.stringify([...wmOpenSections])); } catch(e){}
 }
 
 function wmLoad() {
-  if (window._wmDataFromFb) { wmData = window._wmDataFromFb; }
-  else {
-    try { const d = localStorage.getItem(WM_DATA_KEY); if (d) wmData = JSON.parse(d); } catch(e){}
-  }
-  if (window._wmCheckedFromFb) { window._wmCheckedFromFb.forEach(k => wmChecked.add(k)); }
-  else {
-    try { const c = localStorage.getItem(WM_CHECKED_KEY); if (c) JSON.parse(c).forEach(k => wmChecked.add(k)); } catch(e){}
-  }
-  try {
-    const o = localStorage.getItem(WM_OPEN_KEY);
-    if (o) { wmOpenSections.clear(); JSON.parse(o).forEach(k => wmOpenSections.add(k)); }
-  } catch(e){}
+  const d = syncedLoad(WM_DATA_KEY, window._wmDataFromFb);
+  if (d) wmData = d;
+
+  const c = syncedLoad(WM_CHECKED_KEY, window._wmCheckedFromFb);
+  if (c) c.forEach(k => wmChecked.add(k));
+
+  const o = localLoad(WM_OPEN_KEY);
+  if (o) { wmOpenSections.clear(); o.forEach(k => wmOpenSections.add(k)); }
 }
 
 function wmGetCat(catId) { return wmData.find(c => c.id === catId); }
@@ -2401,22 +2416,14 @@ function switchSection(section) {
 // ─── OUTLETS ───────────────────────────────────────────────
 
 function shopSave() {
-  try { localStorage.setItem(SHOPPING_KEY, JSON.stringify({ items: shopItems, checked: [...shopChecked] })); } catch(e) {}
-  window._fb && window._fb.fbSet('shopping', { items: shopItems, checked: [...shopChecked] });
+  const payload = { items: shopItems, checked: [...shopChecked] };
+  syncedSave(SHOPPING_KEY, payload, 'shopping', payload);
 }
 function shopLoad() {
-  if (window._shopFromFb && window._shopFromFb.items) {
-    shopItems = window._shopFromFb.items;
-    shopChecked = new Set(window._shopFromFb.checked || []);
-    return;
-  }
-  try {
-    const raw = localStorage.getItem(SHOPPING_KEY);
-    if (!raw) { shopItems = getDefaultShopItems(); return; }
-    const d = JSON.parse(raw);
-    shopItems = d.items || getDefaultShopItems();
-    shopChecked = new Set(d.checked || []);
-  } catch(e) { shopItems = getDefaultShopItems(); }
+  const fbValue = (window._shopFromFb && window._shopFromFb.items) ? window._shopFromFb : undefined;
+  const d = syncedLoad(SHOPPING_KEY, fbValue);
+  shopItems = d?.items || getDefaultShopItems();
+  shopChecked = new Set(d?.checked || []);
 }
 function getDefaultShopItems() {
   return [
@@ -3083,16 +3090,12 @@ const PARQUES_KEY = 'parkTracker_v2';
 let parquesState = {};
 
 function parquesLoad() {
-  if (window._parquesFromFb) { parquesState = window._parquesFromFb; return; }
-  try {
-    const d = localStorage.getItem(PARQUES_KEY);
-    if (d) parquesState = JSON.parse(d);
-  } catch(e) {}
+  const d = syncedLoad(PARQUES_KEY, window._parquesFromFb);
+  if (d) parquesState = d;
 }
 
 function parquesSave() {
-  try { localStorage.setItem(PARQUES_KEY, JSON.stringify(parquesState)); } catch(e) {}
-  window._fb && window._fb.fbSet('parques', { state: parquesState });
+  syncedSave(PARQUES_KEY, parquesState, 'parques', { state: parquesState });
 }
 
 function pkKey(parkId, zoneIdx, attrIdx) { return `${parkId}_${zoneIdx}_${attrIdx}`; }
