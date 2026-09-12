@@ -633,6 +633,9 @@ window.addEventListener('DOMContentLoaded', function(){
   document.getElementById('hotelEditModal').addEventListener('click', function(e){
     if(e.target===this) closeHotelEdit();
   });
+  // Pintar Outlets con los datos locales de entrada, sin esperar a Firebase
+  // (antes solo se renderizaba cuando llegaba la respuesta de Firebase).
+  renderOutlets();
 });
 
 // ─── WALMART ───────────────────────────────────────────────
