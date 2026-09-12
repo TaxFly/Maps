@@ -10,7 +10,7 @@
 })();
 </script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Orlando Planning">
@@ -70,7 +70,7 @@ function showSyncOverlay(show) {
   el.style.display = show ? 'flex' : 'none';
 }
 
-window.addEventListener('DOMContentLoaded', async () => {
+async function startApp() {
   showSyncOverlay(true);
 
   const results = await Promise.allSettled([
@@ -157,7 +157,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       updateParquesCounter();
     }
   });
-});
+}
+
+startApp();
 </script>
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -205,7 +207,7 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   overflow-x: hidden;
 }
 
@@ -807,7 +809,7 @@ body {
 
 .add-day-fab {
   position: fixed;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   right: 20px;
   background: var(--accent);
   color: #fff;
@@ -895,7 +897,7 @@ body {
 }
 .mtoast {
   position: fixed;
-  bottom: calc(85px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%) translateY(16px);
   background: var(--surface2);
@@ -1375,7 +1377,7 @@ body.theme-parques .global-counter { color: #8b5cf6; border-color: rgba(139,92,2
     <button class="theme-opt" data-theme-choice="dark" onclick="setThemeChoice('dark')">🌙 Oscuro</button>
     <button class="theme-opt" data-theme-choice="auto" onclick="setThemeChoice('auto')">🌗 Auto</button>
   </div>
-  <button class="drawer-close-btn" onclick="closeSettingsDrawer()">Cerrar</button>
+  <button class="drawer-close-btn" style="margin-top:20px" onclick="closeSettingsDrawer()">Cerrar</button>
 </div>
 
 <script>
@@ -1408,6 +1410,15 @@ function closeSettingsDrawer() {
 </script>
 
 <script>
+// Escapa texto de usuario antes de insertarlo en innerHTML (previene XSS).
+// Usar SIEMPRE que un valor escrito por alguien (nombre de producto, nota,
+// snack, comida, etc.) se inserte en un template literal destinado a innerHTML.
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
 const HOTEL_KEY = 'orlando-hotel-v1';
 let hotel = { addr: "324 Newcastle Dr, Kissimmee FL 34746", url: "https://www.google.com/maps/search/?api=1&query=28.3223251,-81.4939467" };
 function hotelLoad() {
@@ -1709,13 +1720,13 @@ function renderComidas() {
     const mealsHtml = day.meals.map((m, i) =>
       `<div class="meal-row-item" id="mcell-${day.id}-${i}" onclick="editMealCell(${day.id},${i})">
         <span class="meal-row-label">${mealNames[i]}</span>
-        <span class="meal-row-text${(!m || m === '—') ? ' empty' : ''}" id="mtext-${day.id}-${i}">${(!m || m === '—') ? 'Sin planificar' : m}</span>
+        <span class="meal-row-text${(!m || m === '—') ? ' empty' : ''}" id="mtext-${day.id}-${i}">${(!m || m === '—') ? 'Sin planificar' : escapeHtml(m)}</span>
         <span class="meal-row-edit-icon">✎</span>
       </div>`
     ).join('');
     // Snack chips
     const snackChips = day.snacks.map((s,si) =>
-      `<span class="snack-chip">${s}<button class="snack-chip-rm" onclick="removeSnackM(${day.id},${si})">×</button></span>`
+      `<span class="snack-chip">${escapeHtml(s)}<button class="snack-chip-rm" onclick="removeSnackM(${day.id},${si})">×</button></span>`
     ).join('');
     html += `
       <div class="day-meal-card" id="mcard-${day.id}">
@@ -1748,7 +1759,7 @@ function renderComidas() {
               </div>
             </div>
             ${day.notes || true ? `<textarea class="notes-ta" placeholder="📝 Notas del día..." rows="2"
-              onchange="saveMealNotes(${day.id},this.value)">${day.notes}</textarea>` : ''}
+              onchange="saveMealNotes(${day.id},this.value)">${escapeHtml(day.notes)}</textarea>` : ''}
             <div class="del-day-row">
               <button class="mbtn mdel" onclick="deleteMealDay(${day.id})">Eliminar día</button>
             </div>
@@ -1778,7 +1789,7 @@ function editMealCell(dayId, idx) {
   row.innerHTML = `
     <span class="meal-row-label">${mealNames[idx]}</span>
     <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-      <textarea class="meal-cell-textarea" id="mta-${dayId}-${idx}" placeholder="¿Qué van a comer?">${current === '—' ? '' : current}</textarea>
+      <textarea class="meal-cell-textarea" id="mta-${dayId}-${idx}" placeholder="¿Qué van a comer?">${current === '—' ? '' : escapeHtml(current)}</textarea>
       <div class="meal-edit-actions">
         <button class="mbtn" onclick="cancelMealCell(${dayId},${idx})">Cancelar</button>
         <button class="mbtn msave" onclick="saveMealCell(${dayId},${idx})">Guardar</button>
@@ -1799,7 +1810,7 @@ function saveMealCell(dayId, idx) {
   row.onclick = () => editMealCell(dayId, idx);
   row.innerHTML = `
     <span class="meal-row-label">${mealNames[idx]}</span>
-    <span class="meal-row-text${val === '—' ? ' empty' : ''}" id="mtext-${dayId}-${idx}">${val === '—' ? 'Sin planificar' : val}</span>
+    <span class="meal-row-text${val === '—' ? ' empty' : ''}" id="mtext-${dayId}-${idx}">${val === '—' ? 'Sin planificar' : escapeHtml(val)}</span>
     <span class="meal-row-edit-icon">✎</span>`;
 }
 
@@ -1811,7 +1822,7 @@ function cancelMealCell(dayId, idx) {
   row.onclick = () => editMealCell(dayId, idx);
   row.innerHTML = `
     <span class="meal-row-label">${mealNames[idx]}</span>
-    <span class="meal-row-text${(!current || current === '—') ? ' empty' : ''}" id="mtext-${dayId}-${idx}">${(!current || current === '—') ? 'Sin planificar' : current}</span>
+    <span class="meal-row-text${(!current || current === '—') ? ' empty' : ''}" id="mtext-${dayId}-${idx}">${(!current || current === '—') ? 'Sin planificar' : escapeHtml(current)}</span>
     <span class="meal-row-edit-icon">✎</span>`;
 }
 
@@ -1841,7 +1852,7 @@ function removeSnackM(id, si) {
 function rerenderSnacksM(id) {
   const day = mealData.find(d=>d.id===id);
   const chips = day.snacks.map((s,si) =>
-    `<span class="snack-chip">${s}<button class="snack-chip-rm" onclick="removeSnackM(${id},${si})">×</button></span>`
+    `<span class="snack-chip">${escapeHtml(s)}<button class="snack-chip-rm" onclick="removeSnackM(${id},${si})">×</button></span>`
   ).join('');
   document.getElementById(`msnack-list-${id}`).innerHTML =
     chips + `<button class="snack-chip-add" onclick="showSnackInputM(${id})">+ agregar</button>`;
@@ -2287,10 +2298,10 @@ function renderWalmart() {
         html += `
           <div class="wm-item wm-item-editing" onclick="event.stopPropagation()">
             <div class="wm-edit-form">
-              <input class="wm-edit-input wm-edit-name" id="wm-edit-name" placeholder="Nombre del producto" value="${item.name.replace(/"/g,'&quot;')}">
+              <input class="wm-edit-input wm-edit-name" id="wm-edit-name" placeholder="Nombre del producto" value="${escapeHtml(item.name)}">
               <div class="wm-edit-row">
                 <input class="wm-edit-input wm-edit-small" id="wm-edit-qty" type="number" min="0.1" step="0.1" placeholder="Cant." value="${item.qty}">
-                <input class="wm-edit-input wm-edit-unit" id="wm-edit-unit" placeholder="Unidad (oz, lb, caja…)" value="${item.unit.replace(/"/g,'&quot;')}">
+                <input class="wm-edit-input wm-edit-unit" id="wm-edit-unit" placeholder="Unidad (oz, lb, caja…)" value="${escapeHtml(item.unit)}">
                 <input class="wm-edit-input wm-edit-small" id="wm-edit-price" type="number" min="0" step="0.01" placeholder="$ c/u" value="${item.price}">
               </div>
               <div class="wm-edit-hint">Precio unitario. Total = cantidad × precio.</div>
@@ -2305,13 +2316,13 @@ function renderWalmart() {
           <div class="wm-item ${isChecked?'checked':''}" onclick="wmToggle('${item.id}', event)">
             <div class="wm-check">${isChecked?'✓':''}</div>
             <div class="wm-item-body">
-              <div class="wm-item-name">${item.name}</div>
-              <div class="wm-item-detail">${item.qty} ${item.unit}</div>
+              <div class="wm-item-name">${escapeHtml(item.name)}</div>
+              <div class="wm-item-detail">${item.qty} ${escapeHtml(item.unit)}</div>
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <div class="wm-item-price">$${lineTotal}</div>
-              <button class="wm-icon-btn" onclick="wmStartEdit('${cat.id}','${item.id}',event)" title="Editar" aria-label="Editar ${item.name}">✏️</button>
-              <button class="wm-icon-btn wm-icon-del" onclick="wmDeleteItem('${cat.id}','${item.id}',event)" title="Eliminar" aria-label="Eliminar ${item.name}">✕</button>
+              <button class="wm-icon-btn" onclick="wmStartEdit('${cat.id}','${item.id}',event)" title="Editar" aria-label="Editar ${escapeHtml(item.name)}">✏️</button>
+              <button class="wm-icon-btn wm-icon-del" onclick="wmDeleteItem('${cat.id}','${item.id}',event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(item.name)}">✕</button>
             </div>
           </div>`;
       }
@@ -2502,7 +2513,7 @@ function renderDayContent(d) {
   // Editable day label
   if (stopEditingIdx?.dayIdx === d && stopEditingIdx?.stopIdx === 'label') {
     html += `<div style="margin-bottom:14px">
-      <input id="stop-edit-label" class="wm-edit-input" style="width:100%;margin-bottom:6px" value="${day.label.replace(/"/g,'&quot;')}">
+      <input id="stop-edit-label" class="wm-edit-input" style="width:100%;margin-bottom:6px" value="${escapeHtml(day.label)}">
       <div style="display:flex;gap:6px;justify-content:flex-end">
         <button class="mbtn" onclick="stopCancelEdit()">Cancelar</button>
         <button class="mbtn msave" onclick="stopSaveDayLabel(${d})">Guardar</button>
@@ -2510,7 +2521,7 @@ function renderDayContent(d) {
     </div>`;
   } else {
     html += `<div class="day-label" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-      <span style="flex:1">${day.label}</span>
+      <span style="flex:1">${escapeHtml(day.label)}</span>
       <button class="wm-icon-btn" onclick="stopStartEditLabel(${d});event.stopPropagation()" title="Editar descripción del día" style="flex-shrink:0">✏️</button>
     </div>`;
   }
@@ -2541,14 +2552,14 @@ function renderDayContent(d) {
 
     if (isEditingThis) {
       const badgeVal = s.badge || '';
-      const badgeText = (s.badgeText || '').replace(/"/g,'&quot;');
+      const badgeText = escapeHtml(s.badgeText || '');
       html += `
         <div class="stop-card" onclick="event.stopPropagation()" style="cursor:default;flex-direction:column;align-items:stretch">
           <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--accent)">✏️ Editar parada</div>
           <div class="wm-edit-form" style="width:100%">
-            <input class="wm-edit-input" id="stop-edit-name" placeholder="Nombre del lugar" value="${s.name.replace(/"/g,'&quot;')}" style="margin-bottom:6px;width:100%">
+            <input class="wm-edit-input" id="stop-edit-name" placeholder="Nombre del lugar" value="${escapeHtml(s.name)}" style="margin-bottom:6px;width:100%">
             <textarea class="wm-edit-input" id="stop-edit-desc" placeholder="Descripción (horarios, tips…)" style="margin-bottom:6px;width:100%;min-height:56px;resize:vertical;font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.4">${s.desc}</textarea>
-            <input class="wm-edit-input" id="stop-edit-url" placeholder="URL de Google Maps" value="${(s.url||'').replace(/"/g,'&quot;')}" style="margin-bottom:6px;width:100%">
+            <input class="wm-edit-input" id="stop-edit-url" placeholder="URL de Google Maps" value="${escapeHtml(s.url||'')}" style="margin-bottom:6px;width:100%">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
               <select class="wm-edit-input" id="stop-edit-badge">
                 <option value=""${badgeVal===''?' selected':''}>Sin badge</option>
@@ -2565,8 +2576,8 @@ function renderDayContent(d) {
         </div>`;
     } else {
       let badge = '';
-      if (s.badge === 'star') badge = `<span class="badge badge-star">${s.badgeText}</span>`;
-      if (s.badge === 'rec')  badge = `<span class="badge badge-rec">${s.badgeText}</span>`;
+      if (s.badge === 'star') badge = `<span class="badge badge-star">${escapeHtml(s.badgeText)}</span>`;
+      if (s.badge === 'rec')  badge = `<span class="badge badge-rec">${escapeHtml(s.badgeText)}</span>`;
       html += `
         <div class="stop-card${isV?' visited':''}" draggable="true"
           ondragstart="stopDragStart(${d},${i},event)"
@@ -2577,19 +2588,19 @@ function renderDayContent(d) {
           <div class="stop-drag-handle" onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" title="Arrastrar para reordenar" aria-label="Arrastrar para reordenar" role="button">⠿</div>
           <div class="stop-num">${isV ? '✓' : i+1}</div>
           <div class="stop-body">
-            <div class="stop-name">${s.name}</div>
-            <div class="stop-desc">${s.desc}</div>
+            <div class="stop-name">${escapeHtml(s.name)}</div>
+            <div class="stop-desc">${escapeHtml(s.desc)}</div>
             <div class="stop-footer">
               <div class="badges">${badge}</div>
               <div class="stop-footer-actions">
                 <button class="wm-icon-btn stop-action-btn" onclick="stopMoveUp(${d},${i},event)" title="Subir" aria-label="Mover parada arriba" ${i===0?'style="opacity:0.25;pointer-events:none"':''}>↑</button>
                 <button class="wm-icon-btn stop-action-btn" onclick="stopMoveDown(${d},${i},event)" title="Bajar" aria-label="Mover parada abajo" ${i===day.stops.length-1?'style="opacity:0.25;pointer-events:none"':''}>↓</button>
-                ${s.url ? `<a class="maps-btn" href="${s.url}" onclick="event.stopPropagation()">
+                ${s.url && /^https?:\/\//i.test(s.url) ? `<a class="maps-btn" href="${escapeHtml(s.url)}" onclick="event.stopPropagation()">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
                   Maps
                 </a>` : ''}
-                <button class="wm-icon-btn stop-action-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada" aria-label="Editar ${s.name}">✏️</button>
-                <button class="wm-icon-btn wm-icon-del stop-action-btn" onclick="stopDelete(${d},${i},event)" title="Eliminar parada" aria-label="Eliminar ${s.name}">✕</button>
+                <button class="wm-icon-btn stop-action-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada" aria-label="Editar ${escapeHtml(s.name)}">✏️</button>
+                <button class="wm-icon-btn wm-icon-del stop-action-btn" onclick="stopDelete(${d},${i},event)" title="Eliminar parada" aria-label="Eliminar ${escapeHtml(s.name)}">✕</button>
               </div>
             </div>
           </div>
@@ -2690,15 +2701,15 @@ function initDayMap(d) {
     });
 
     const badgeHtml = isStar ? `<span style="font-size:10px;color:#2563eb">⭐ Imperdible</span>` :
-                      isRec  ? `<span style="font-size:10px;color:#10b981">✅ ${s.badgeText}</span>` : '';
+                      isRec  ? `<span style="font-size:10px;color:#10b981">✅ ${escapeHtml(s.badgeText)}</span>` : '';
     const visitedHtml = isVisited ? `<span style="font-size:10px;color:#10b981">✓ Visitado</span>` : '';
 
     L.marker([s.lat, s.lng], { icon })
       .bindPopup(`
-        <div class="map-popup-name">${originalIdx + 1}. ${s.name}</div>
-        <div class="map-popup-desc">${s.desc}</div>
+        <div class="map-popup-name">${originalIdx + 1}. ${escapeHtml(s.name)}</div>
+        <div class="map-popup-desc">${escapeHtml(s.desc)}</div>
         ${badgeHtml || visitedHtml ? `<div style="margin-top:5px;display:flex;gap:6px">${badgeHtml}${visitedHtml}</div>` : ''}
-        ${s.url ? `<a href="${s.url}" target="_blank" style="display:inline-block;margin-top:7px;font-size:11px;color:#2563eb;text-decoration:none;font-family:'DM Sans',sans-serif;font-weight:600">↗ Abrir en Maps</a>` : ''}
+        ${s.url && /^https?:\/\//i.test(s.url) ? `<a href="${escapeHtml(s.url)}" target="_blank" style="display:inline-block;margin-top:7px;font-size:11px;color:#2563eb;text-decoration:none;font-family:'DM Sans',sans-serif;font-weight:600">↗ Abrir en Maps</a>` : ''}
       `, { maxWidth: 220 })
       .addTo(_leafletMap);
 
@@ -2921,10 +2932,10 @@ function renderShopList() {
       if (isEditingThis) {
         html += `<div class="wm-item wm-item-editing" onclick="event.stopPropagation()">
           <div class="wm-edit-form">
-            <input class="wm-edit-input" id="shop-edit-name" placeholder="Qué querés comprar" value="${item.name.replace(/"/g,'&quot;')}">
+            <input class="wm-edit-input" id="shop-edit-name" placeholder="Qué querés comprar" value="${escapeHtml(item.name)}">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-              <input class="wm-edit-input" id="shop-edit-size" placeholder="Talle (M, 42, 32x30…)" value="${(item.size||'').replace(/"/g,'&quot;')}">
-              <input class="wm-edit-input" id="shop-edit-store" placeholder="Tienda sugerida" value="${(item.store||'').replace(/"/g,'&quot;')}">
+              <input class="wm-edit-input" id="shop-edit-size" placeholder="Talle (M, 42, 32x30…)" value="${escapeHtml(item.size||'')}">
+              <input class="wm-edit-input" id="shop-edit-store" placeholder="Tienda sugerida" value="${escapeHtml(item.store||'')}">
             </div>
             <select class="wm-edit-input" id="shop-edit-prio" style="margin-bottom:6px">
               <option value="alta"${item.priority==='alta'?' selected':''}>🔴 Alta prioridad</option>
@@ -2941,14 +2952,14 @@ function renderShopList() {
         html += `<div class="wm-item${isChecked?' checked':''}" onclick="shopToggle('${item.id}',event)">
           <div class="wm-check">${isChecked?'✓':''}</div>
           <div class="wm-item-body">
-            <div class="wm-item-name">${item.name}</div>
-            <div class="wm-item-detail">${item.size ? 'Talle: '+item.size : ''} ${item.store ? '· '+item.store : ''}</div>
+            <div class="wm-item-name">${escapeHtml(item.name)}</div>
+            <div class="wm-item-detail">${item.size ? 'Talle: '+escapeHtml(item.size) : ''} ${item.store ? '· '+escapeHtml(item.store) : ''}</div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
             <span style="width:8px;height:8px;border-radius:50%;background:${pColor};display:inline-block;flex-shrink:0" title="Prioridad ${item.priority}"></span>
             <button class="wm-icon-btn" onclick="shopMoveItem('${item.id}',event)" title="${moveTitle}" aria-label="${moveTitle}">${moveLabel}</button>
-            <button class="wm-icon-btn" onclick="shopStartEdit('${item.id}',event)" title="Editar" aria-label="Editar ${item.name}">✏️</button>
-            <button class="wm-icon-btn wm-icon-del" onclick="shopDeleteItem('${item.id}',event)" title="Eliminar" aria-label="Eliminar ${item.name}">✕</button>
+            <button class="wm-icon-btn" onclick="shopStartEdit('${item.id}',event)" title="Editar" aria-label="Editar ${escapeHtml(item.name)}">✏️</button>
+            <button class="wm-icon-btn wm-icon-del" onclick="shopDeleteItem('${item.id}',event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(item.name)}">✕</button>
           </div>
         </div>`;
       }
