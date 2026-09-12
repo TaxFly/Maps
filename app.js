@@ -1,0 +1,2275 @@
+// Escapa texto de usuario antes de insertarlo en innerHTML (previene XSS).
+// Usar SIEMPRE que un valor escrito por alguien (nombre de producto, nota,
+// snack, comida, etc.) se inserte en un template literal destinado a innerHTML.
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
+// ─── Guardado y carga sincronizados (localStorage + Firebase) ───
+// Los 6 módulos (hotel, días, comidas, Walmart, compras, parques) repetían
+// el mismo patrón: guardar en localStorage con try/catch, y subir el dato
+// a Firebase con su docId. Estos tres helpers concentran ese patrón.
+//
+// syncedSave: guarda `localValue` en `localKey` y sube `fbValue` (o
+// `localValue` si no se pasa uno distinto) al docId de Firebase. Se admite
+// una forma distinta para Firebase porque algunos módulos (ej. "días")
+// envuelven el dato de otra manera para cada destino.
+// Registro de "lo último que yo mandé" por docId, usado por fbListen (en el
+// script de Firebase) para avisar si otro dispositivo pisó el mismo dato
+// casi al mismo tiempo. Ver comentario junto a CONFLICT_WINDOW_MS.
+window._syncedWriteLog = window._syncedWriteLog || {};
+
+function syncedSave(localKey, localValue, docId, fbValue) {
+  try { localStorage.setItem(localKey, JSON.stringify(localValue)); } catch(e) {}
+  const payload = fbValue !== undefined ? fbValue : localValue;
+  if (window._fb && window._fb.stableStringify) {
+    window._syncedWriteLog[docId] = { at: Date.now(), value: window._fb.stableStringify(payload) };
+  }
+  window._fb && window._fb.fbSet(docId, payload);
+}
+
+// localLoad: lee y parsea un valor de localStorage. null si no existe o
+// está corrupto.
+function localLoad(localKey) {
+  try {
+    const raw = localStorage.getItem(localKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+// syncedLoad: prioriza el dato ya bajado de Firebase (pasado en `fbValue`,
+// típicamente `window._xFromFb`) por sobre lo que haya en localStorage,
+// igual que hacía cada módulo por separado.
+function syncedLoad(localKey, fbValue) {
+  return (fbValue !== undefined && fbValue !== null) ? fbValue : localLoad(localKey);
+}
+
+const HOTEL_KEY = 'orlando-hotel-v1';
+let hotel = { addr: "324 Newcastle Dr, Kissimmee FL 34746", url: "https://www.google.com/maps/search/?api=1&query=28.3223251,-81.4939467" };
+function hotelLoad() {
+  const d = syncedLoad(HOTEL_KEY, window._hotelFromFb);
+  if (d) hotel = d;
+}
+function hotelSave() {
+  syncedSave(HOTEL_KEY, hotel, 'hotel');
+}
+hotelLoad();
+
+// ─── OUTLETS STATE (declared early to avoid TDZ errors) ───
+let outletSubTab = 'cronograma';
+let currentOutletDay = 0;
+const SHOPPING_KEY = 'outlets-shopping-list';
+const shopCats = [
+  { id:'remeras',       icon:'👕', title:'Remeras / T-Shirts' },
+  { id:'pantalones',    icon:'👖', title:'Pantalones / Jeans' },
+  { id:'ropa-deportiva',icon:'🏃', title:'Ropa Deportiva' },
+  { id:'calzado',       icon:'👟', title:'Calzado / Zapatillas' },
+  { id:'accesorios',    icon:'🎒', title:'Accesorios / Bolsos' },
+  { id:'varios',        icon:'🛍️', title:'Varios' },
+];
+let shopItems = [];
+let shopChecked = new Set();
+let shopEditingItem = null;
+let shopOpenSections = new Set(['remeras','calzado']);
+let shopListTab = 'need'; // 'need' | 'noneed'
+
+// Incrementar este número cada vez que se corrijan coordenadas o paradas
+const DAYS_VERSION = 2;
+
+const days = [
+  {
+    label: "Zona Kissimmee Este — The Loop & Osceola Pkwy.",
+    stops: [
+      {name:"The Loop Kissimmee", desc:"Centro comercial con varios locales. Dentro de este hay: Five Below · Ross Dress for Less · Burlington · JCPenney. Horario: 10 a.m.–9:30 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3442,-81.4244", lat:28.3442, lng:-81.4244},
+      {name:"Nike Clearance Store", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3441007,-81.4290266", badge:"star", badgeText:"⭐ imperdible", lat:28.3441007, lng:-81.4290266},
+      {name:"T.J. Maxx", desc:"Horario: 9:30 a.m.–9:30 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3425818,-81.4302695", lat:28.3425818, lng:-81.4302695},
+      {name:"Goodwill", desc:"Horario: 9 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3399706,-81.432448", lat:28.3399706, lng:-81.432448},
+      {name:"The Crosslands Shopping Center", desc:"Horario: 8 a.m.–10 p.m. Dentro de este hay: Ross Dress for Less · Dollar Tree · Five Below · Sephora · Academy Sports · Marshalls & HomeGoods.", url:"https://www.google.com/maps/search/?api=1&query=28.3405798,-81.4089169", lat:28.3405798, lng:-81.4089169},
+      {name:"Burlington", desc:"Horario: 9 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3381838,-81.4097627", lat:28.3381838, lng:-81.4097627},
+    ]
+  },
+  {
+    label: "Zona Vineland & Regency Village — muy cerca del alojamiento. Ver si no alcanzó algo el día anterior",
+    stops: [
+      {name:"Marshalls / Target / Dollar General", desc:"Horario: 9:30 a.m.–9:30 p.m. / Horario: 8 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3325731,-81.4738182", lat:28.3325731, lng:-81.4738182},
+      {name:"Ross Dress for Less / Burlington", desc:"Horario: 9 a.m.–10 p.m. / Horario: 9 a.m.–12 a.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3478,-81.4840", lat:28.3478, lng:-81.4840},
+      {name:"Sunset Plaza", desc:"Horario: 9 a.m.–10 p.m. Dentro de este hay: T.J. Maxx · Ross Dress for Less · Five Below.", url:"https://www.google.com/maps/search/?api=1&query=28.346197,-81.482562", lat:28.346197, lng:-81.482562},
+      {name:"Lake Buena Vista Factory Stores - Outlet", desc:"Horario: 10 a.m.–8 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.350379,-81.4873368", lat:28.350379, lng:-81.4873368},
+      {name:"Orlando Vineland Premium Outlets", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3873,-81.4924", badge:"star", badgeText:"⭐ imperdible", lat:28.3873, lng:-81.4924},
+      {name:"Vineland Pointe", desc:"Horario: 9 a.m.–10 p.m. Dentro de este hay: Ross Dress for Less · Marshalls · Burlington · Five Below · Disney Gift & Toys.", url:"https://www.google.com/maps/search/?api=1&query=28.3930465,-81.4847703", lat:28.3930465, lng:-81.4847703},
+    ]
+  },
+  {
+    label: "Zona Orlando Norte — Int'l Drive, Turkey Lake, Florida Mall.",
+    stops: [
+      {name:"Orlando International Premium Outlets", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4746714,-81.4515288", badge:"star", badgeText:"⭐ imperdible", lat:28.4746714, lng:-81.4515288},
+      {name:"Orlando Outlet Marketplace", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4681384,-81.4521101", lat:28.4681384, lng:-81.4521101},
+      {name:"International Drive Value Center", desc:"Horario: 9 a.m.–11 p.m. Dentro de este hay: Ross Dress for Less · Five Below · Dollar Tree.", url:"https://www.google.com/maps/search/?api=1&query=28.4661039,-81.4524483", lat:28.4661039, lng:-81.4524483},
+      {name:"International Festival", desc:"Horario: 9 a.m.–11 p.m. Dentro de este hay: Five Below · T.J. Maxx · Burlington.", url:"https://www.google.com/maps/search/?api=1&query=28.4612,-81.4600", lat:28.4612, lng:-81.4600},
+      {name:"The Florida Mall", desc:"Horario: 10 a.m.–8 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.445924,-81.3955090", badge:"star", badgeText:"⭐ imperdible", lat:28.445924, lng:-81.3955090},
+      {name:"Ross Dress for Less", desc:"Horario: 9:30 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4521711,-81.3988041", lat:28.4521711, lng:-81.3988041},
+      {name:"Ross Dress for Less / Marshalls / Burlington", desc:"Horario: 9:30 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4450,-81.4370", lat:28.4450, lng:-81.4370},
+      {name:"Ross Dress for Less", desc:"Horario: 9 a.m.–11:30 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4680,-81.4630", lat:28.4680, lng:-81.4630},
+    ]
+  }
+];
+
+const STORAGE_KEY = 'outlets-orlando-visited-v2';
+const DAYS_KEY = 'outlets-orlando-days-v2';
+const visited = [new Set(), new Set(), new Set()];
+let stopEditingIdx = null; // { dayIdx, stopIdx } or null
+let stopAddingDay = null;  // dayIdx or null
+
+function saveState() {
+  const visitedArr = visited.map(s => [...s]);
+  syncedSave(STORAGE_KEY, visitedArr, 'visited', { visited: visitedArr });
+  syncedSave(DAYS_KEY, days, 'days', { days: days, v: DAYS_VERSION });
+}
+
+function loadState() {
+  if (window._visitedFromFb) {
+    window._visitedFromFb.forEach((arr, i) => { if (visited[i]) arr.forEach(v => visited[i].add(v)); });
+  } else {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) { const data = JSON.parse(raw); data.forEach((arr, i) => arr.forEach(v => visited[i].add(v))); }
+    } catch(e) {}
+  }
+  if (window._daysFromFb) {
+    const fbVersion = window._daysFromFb._v || 1;
+    if (fbVersion < DAYS_VERSION) {
+      // Las coords del código son más nuevas: actualizar paradas en Firebase
+      // pero preservar labels personalizados si los hay
+      window._daysFromFb.forEach((fbDay, i) => {
+        if (i < days.length && fbDay.label) days[i].label = fbDay.label;
+        // Las stops se toman del código (coords corregidas)
+      });
+      // Guardar en Firebase con la versión nueva
+      window._fb && window._fb.fbSet('days', { days: days, v: DAYS_VERSION });
+    } else {
+      window._daysFromFb.forEach((d, i) => { if (i < days.length) days[i] = d; else days.push(d); });
+      while (visited.length < days.length) visited.push(new Set());
+    }
+  } else {
+    try {
+      const rawDays = localStorage.getItem(DAYS_KEY);
+      if (rawDays) {
+        const savedDays = JSON.parse(rawDays);
+        if (savedDays.length >= days.length) {
+          savedDays.forEach((d, i) => { if (i < days.length) days[i] = d; else days.push(d); });
+          while (visited.length < days.length) visited.push(new Set());
+        }
+      }
+    } catch(e) {}
+  }
+}
+
+function totalDone() {
+  return visited.reduce((acc, s) => acc + s.size, 0);
+}
+function totalAll() {
+  return days.reduce((acc, d) => acc + d.stops.length, 0);
+}
+
+function hardRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  if (btn) { btn.classList.add('spinning'); setTimeout(() => btn.classList.remove('spinning'), 500); }
+  // Force reload bypassing cache
+  window.location.reload(true);
+}
+
+function updateGlobal() {
+  const done = totalDone();
+  const all = totalAll();
+  document.getElementById('global-counter').textContent = done + ' / ' + all;
+}
+
+function launchConfetti() {
+  const wrap = document.getElementById('confetti-wrap');
+  wrap.innerHTML = '';
+  const colors = ['#2563eb','#7c3aed','#10b981','#f0ede8','#e87bba'];
+  for (let i = 0; i < 60; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.cssText = `
+      left: ${Math.random()*100}%;
+      background: ${colors[Math.floor(Math.random()*colors.length)]};
+      width: ${4 + Math.random()*8}px;
+      height: ${4 + Math.random()*8}px;
+      border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+      animation-duration: ${1.5 + Math.random()*2}s;
+      animation-delay: ${Math.random()*0.5}s;
+    `;
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+}
+
+function toggleStop(dayIdx, stopIdx) {
+  if (visited[dayIdx].has(stopIdx)) {
+    visited[dayIdx].delete(stopIdx);
+  } else {
+    visited[dayIdx].add(stopIdx);
+    const day = days[dayIdx];
+    if (visited[dayIdx].size === day.stops.length) {
+      setTimeout(launchConfetti, 200);
+    }
+  }
+  saveState();
+  renderOutlets();
+  updateGlobal();
+}
+
+async function resetDay(d) {
+  const dayLabel = ['Día 1','Día 2','Día 3'][d] || `Día ${d+1}`;
+  const ok = await showConfirm(`Se van a desmarcar todas las paradas de ${dayLabel}.`, '¿Reiniciar día?', 'Reiniciar', true);
+  if (!ok) return;
+  visited[d].clear();
+  saveState();
+  renderOutlets();
+  updateGlobal();
+}
+
+
+
+
+// App init - called after Firebase data is loaded
+window._appInit = function() {
+  hotelLoad();
+  loadState();
+  mealLoad();
+  wmLoad();
+  shopLoad();
+  parquesLoad();
+  renderOutlets();
+  updateGlobal();
+  // Expose globals for realtime listeners
+  window.visited = visited;
+  window.days = days;
+  window.hotel = hotel;
+  window.wmChecked = wmChecked;
+  window.renderOutlets = renderOutlets;
+  window.renderComidas = renderComidas;
+  window.renderWalmart = renderWalmart;
+  window.renderParques = renderParques;
+  window.updateGlobal = updateGlobal;
+  window._appInited = true;
+  // Patch fbSet to show sync dot feedback
+  patchFbSyncDot();
+};
+
+// If Firebase already ready (unlikely but safe), init now
+if (window._fbReady) {
+  window._appInit();
+} // else Firebase module will call _appInit after loading
+
+// ─── COMIDAS ───────────────────────────────────────────────
+const MEAL_KEY = 'orlando-meals-v1';
+function mealSave() {
+  syncedSave(MEAL_KEY, mealData, 'meals', { meals: mealData });
+}
+function mealLoad() {
+  const d = syncedLoad(MEAL_KEY, window._mealsFromFb);
+  if (d) mealData = d;
+}
+
+window._setMealData = function(d) { mealData = d; };
+let mealData = [
+  { id:1, date:"17 ene", title:"Llegada (5pm)", type:"arrival",
+    meals:["—","—","Delivery o aeropuerto"], snacks:[], notes:"Llegás a las 5pm. No cocinar." },
+  { id:2, date:"18 ene", title:"Walmart + Hotel", type:"walmart",
+    meals:["Lo que traigas del avión","Mac & Cheese Velveeta","Pasta con salsa + parmesano"],
+    snacks:["Ritz","Donettes"], notes:"Ir a Walmart a la mañana temprano." },
+  { id:3, date:"19 ene", title:"Disney", type:"disney",
+    meals:["Waffles EGGO con Nutella + café","Wrap de jamón y queso (Ziploc)","Lasaña Stouffer"],
+    snacks:["Pack Oreo/Ritz","Applesauce pouch","Agua x2"], notes:"" },
+  { id:4, date:"20 ene", title:"Disney", type:"disney",
+    meals:["Corn Flakes con leche + jugo","Sándwich de jamón y queso (Ziploc)","Corn dogs + papas fritas"],
+    snacks:["Chippers","Applesauce pouch","Granola bar"], notes:"" },
+  { id:5, date:"21 ene", title:"Universal", type:"universal",
+    meals:["Sausage Croissant Sandwich + café","Wrap de atún con maíz (Ziploc)","Pizza Rising Crust"],
+    snacks:["Pack variado snacks","Applesauce pouch","Agua x2"], notes:"Butterbeer en Hogsmeade 🍺" },
+  { id:6, date:"22 ene", title:"Disney", type:"disney",
+    meals:["Tostadas con Nutella + jugo","Sándwich de atún con mayo (Ziploc)","Pollo al horno con arroz y maíz"],
+    snacks:["Rice Krispies Treats","Applesauce pouch","Granola bar"], notes:"" },
+  { id:7, date:"23 ene", title:"Universal", type:"universal",
+    meals:["Waffles EGGO + café","Wrap de jamón y queso (Ziploc)","Rice-A-Roni + mozzarella sticks"],
+    snacks:["Pack Oreo/Chips Ahoy","Applesauce pouch","Agua x2"], notes:"" },
+  { id:8, date:"24 ene", title:"Universal", type:"universal",
+    meals:["Corn Flakes + yogurt","Tazón amantes de carne (llevar)","Wraps de pollo con queso y salsa picante"],
+    snacks:["Ritz","Applesauce pouch","Granola bar"], notes:"Loaded Tots en Springfield 🌭" },
+  { id:9, date:"25 ene", title:"Libre — Outlets", type:"free",
+    meals:["Huevos revueltos con bacon + tostadas","Sopa Maggi con cabello de ángel","Hamburguesas caseras con queso y bacon"],
+    snacks:["Chippers"], notes:"" },
+  { id:10, date:"26 ene", title:"Libre — Paseo", type:"free",
+    meals:["Tostadas con Nutella + café","Corned Beef Hash con huevo frito y salsa picante","Pasta con albóndigas y salsa"],
+    snacks:["Donettes","Ritz"], notes:"" },
+  { id:11, date:"27 ene", title:"Libre / Parque extra", type:"free",
+    meals:["Corn Flakes con leche","Sandwichs jamón y queso (paquete)","Chuletas de cerdo con puré y maíz"],
+    snacks:["Granola bar","Applesauce pouch"], notes:"Portable por si van a algún parque." },
+  { id:12, date:"28 ene", title:"Vuelo", type:"arrival",
+    meals:["Tostadas con Nutella + café + Donettes","Wrap rápido con lo que quede","—"],
+    snacks:[], notes:"Liquidar restos. No comprar nada extra." },
+];
+const mealNames = ["Desayuno","Almuerzo","Cena"];
+const typeConf = {
+  disney:    { label:"Disney 🏰",    cls:"mbadge-disney" },
+  universal: { label:"Universal 🎢", cls:"mbadge-universal" },
+  free:      { label:"Libre",        cls:"mbadge-free" },
+  arrival:   { label:"Llegada",      cls:"mbadge-arrival" },
+  walmart:   { label:"Walmart",      cls:"mbadge-walmart" },
+};
+
+function renderComidas() {
+  const panel = document.getElementById('panel-comidas');
+  let html = '<div class="comidas-panel">';
+  mealData.forEach(day => {
+    const tc = typeConf[day.type];
+    // Parse date to split number and month
+    const dateParts = day.date.split(' ');
+    const dateNum = dateParts[0] || day.date;
+    const dateMon = dateParts[1] || '';
+    // Meal preview dots
+    const dots = day.meals.map(m =>
+      `<span class="meal-dot${m && m !== '—' ? ' filled' : ''}"></span>`
+    ).join('');
+    // Meal rows
+    const mealsHtml = day.meals.map((m, i) =>
+      `<div class="meal-row-item" id="mcell-${day.id}-${i}" onclick="editMealCell(${day.id},${i})">
+        <span class="meal-row-label">${mealNames[i]}</span>
+        <span class="meal-row-text${(!m || m === '—') ? ' empty' : ''}" id="mtext-${day.id}-${i}">${(!m || m === '—') ? 'Sin planificar' : escapeHtml(m)}</span>
+        <span class="meal-row-edit-icon">✎</span>
+      </div>`
+    ).join('');
+    // Snack chips
+    const snackChips = day.snacks.map((s,si) =>
+      `<span class="snack-chip">${escapeHtml(s)}<button class="snack-chip-rm" onclick="removeSnackM(${day.id},${si})">×</button></span>`
+    ).join('');
+    html += `
+      <div class="day-meal-card" id="mcard-${day.id}">
+        <div class="day-meal-header" onclick="toggleMealCard(${day.id})">
+          <div class="meal-date-pill">
+            <span class="meal-date-num">${dateNum}</span>
+            <span class="meal-date-mon">${dateMon}</span>
+          </div>
+          <div class="meal-header-center">
+            <div class="meal-day-title">${day.title}</div>
+            <span class="meal-day-badge ${tc.cls}">${tc.label}</span>
+          </div>
+          <div class="meal-preview">${dots}</div>
+          <span class="meal-chevron">▾</span>
+        </div>
+        <div class="day-meal-body">
+          <div class="meals-stack">${mealsHtml}</div>
+          <div class="meal-extras">
+            <div class="snacks-row" id="msnacks-${day.id}">
+              <div class="snacks-row-label">🎒 Mochila / Snacks</div>
+              <div class="snack-chips" id="msnack-list-${day.id}">
+                ${snackChips}
+                <button class="snack-chip-add" onclick="showSnackInputM(${day.id})">+ agregar</button>
+              </div>
+              <div class="snack-inline-input" id="msnack-input-${day.id}" style="display:none">
+                <input class="snack-field" type="text" id="msnack-field-${day.id}" placeholder="ej: Granola bar"
+                  onkeydown="if(event.key==='Enter')addSnackM(${day.id})">
+                <button class="mbtn msave" onclick="addSnackM(${day.id})">OK</button>
+                <button class="mbtn" onclick="hideSnackInputM(${day.id})">✕</button>
+              </div>
+            </div>
+            ${day.notes || true ? `<textarea class="notes-ta" placeholder="📝 Notas del día..." rows="2"
+              onchange="saveMealNotes(${day.id},this.value)">${escapeHtml(day.notes)}</textarea>` : ''}
+            <div class="del-day-row">
+              <button class="mbtn mdel" onclick="deleteMealDay(${day.id})">Eliminar día</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+function toggleMealCard(id) {
+  document.getElementById('mcard-'+id).classList.toggle('open');
+}
+
+function editMealCell(dayId, idx) {
+  const row = document.getElementById(`mcell-${dayId}-${idx}`);
+  if (row.classList.contains('editing')) return;
+  // Close any other open editor
+  document.querySelectorAll('.meal-row-item.editing').forEach(r => {
+    const [,dId,i] = r.id.split('-');
+    cancelMealCell(Number(dId), Number(i));
+  });
+  const current = mealData.find(d=>d.id===dayId).meals[idx];
+  row.classList.add('editing');
+  row.onclick = null;
+  row.innerHTML = `
+    <span class="meal-row-label">${mealNames[idx]}</span>
+    <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+      <textarea class="meal-cell-textarea" id="mta-${dayId}-${idx}" placeholder="¿Qué van a comer?">${current === '—' ? '' : escapeHtml(current)}</textarea>
+      <div class="meal-edit-actions">
+        <button class="mbtn" onclick="cancelMealCell(${dayId},${idx})">Cancelar</button>
+        <button class="mbtn msave" onclick="saveMealCell(${dayId},${idx})">Guardar</button>
+      </div>
+    </div>`;
+  document.getElementById(`mta-${dayId}-${idx}`).focus();
+}
+
+function saveMealCell(dayId, idx) {
+  const ta = document.getElementById(`mta-${dayId}-${idx}`);
+  const val = ta.value.trim() || '—';
+  mealData.find(d=>d.id===dayId).meals[idx] = val;
+  mealSave();
+  showMToast('Guardado ✓');
+  // Re-render just this row
+  const row = document.getElementById(`mcell-${dayId}-${idx}`);
+  row.classList.remove('editing');
+  row.onclick = () => editMealCell(dayId, idx);
+  row.innerHTML = `
+    <span class="meal-row-label">${mealNames[idx]}</span>
+    <span class="meal-row-text${val === '—' ? ' empty' : ''}" id="mtext-${dayId}-${idx}">${val === '—' ? 'Sin planificar' : escapeHtml(val)}</span>
+    <span class="meal-row-edit-icon">✎</span>`;
+}
+
+function cancelMealCell(dayId, idx) {
+  const current = mealData.find(d=>d.id===dayId).meals[idx];
+  const row = document.getElementById(`mcell-${dayId}-${idx}`);
+  if (!row) return;
+  row.classList.remove('editing');
+  row.onclick = () => editMealCell(dayId, idx);
+  row.innerHTML = `
+    <span class="meal-row-label">${mealNames[idx]}</span>
+    <span class="meal-row-text${(!current || current === '—') ? ' empty' : ''}" id="mtext-${dayId}-${idx}">${(!current || current === '—') ? 'Sin planificar' : escapeHtml(current)}</span>
+    <span class="meal-row-edit-icon">✎</span>`;
+}
+
+function showSnackInputM(id) {
+  document.getElementById(`msnack-input-${id}`).style.display = 'flex';
+  document.getElementById(`msnack-field-${id}`).focus();
+}
+function hideSnackInputM(id) {
+  document.getElementById(`msnack-input-${id}`).style.display = 'none';
+  document.getElementById(`msnack-field-${id}`).value = '';
+}
+function addSnackM(id) {
+  const f = document.getElementById(`msnack-field-${id}`);
+  const val = f.value.trim();
+  if (!val) return;
+  mealData.find(d=>d.id===id).snacks.push(val);
+  rerenderSnacksM(id);
+  hideSnackInputM(id);
+  mealSave();
+  showMToast('Snack agregado ✓');
+}
+function removeSnackM(id, si) {
+  mealData.find(d=>d.id===id).snacks.splice(si,1);
+  mealSave();
+  rerenderSnacksM(id);
+}
+function rerenderSnacksM(id) {
+  const day = mealData.find(d=>d.id===id);
+  const chips = day.snacks.map((s,si) =>
+    `<span class="snack-chip">${escapeHtml(s)}<button class="snack-chip-rm" onclick="removeSnackM(${id},${si})">×</button></span>`
+  ).join('');
+  document.getElementById(`msnack-list-${id}`).innerHTML =
+    chips + `<button class="snack-chip-add" onclick="showSnackInputM(${id})">+ agregar</button>`;
+}
+function saveMealNotes(id, val) {
+  mealData.find(d=>d.id===id).notes = val;
+  mealSave();
+}
+async function deleteMealDay(id) {
+  const ok = await showConfirm('¿Eliminar este día del plan de comidas?', '¿Eliminar día?', 'Eliminar');
+  if (!ok) return;
+  mealData = mealData.filter(d=>d.id!==id);
+  mealSave();
+  renderComidas();
+  showMToast('Día eliminado');
+}
+function openMealModal() { document.getElementById('mealModal').classList.add('open'); }
+function closeMealModal() {
+  document.getElementById('mealModal').classList.remove('open');
+  ['mDate','mTitle'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('error');
+    const err = document.getElementById(id + '-err');
+    if (err) err.classList.remove('show');
+  });
+}
+function addMealDay() {
+  const date = document.getElementById('mDate').value.trim();
+  const title = document.getElementById('mTitle').value.trim();
+  let hasError = false;
+  ['mDate','mTitle'].forEach(id => {
+    const el = document.getElementById(id);
+    const err = document.getElementById(id + '-err');
+    if (!el.value.trim()) {
+      el.classList.add('error');
+      if (err) err.classList.add('show');
+      hasError = true;
+    } else {
+      el.classList.remove('error');
+      if (err) err.classList.remove('show');
+    }
+  });
+  if (hasError) return;
+  const newId = Date.now();
+  mealData.push({
+    id: newId,
+    date, title,
+    type: document.getElementById('mType').value,
+    meals: [
+      document.getElementById('mBreakfast').value.trim() || '—',
+      document.getElementById('mLunch').value.trim() || '—',
+      document.getElementById('mDinner').value.trim() || '—',
+    ],
+    snacks: [], notes: ''
+  });
+  mealSave();
+  renderComidas();
+  closeMealModal();
+  ['mDate','mTitle','mBreakfast','mLunch','mDinner'].forEach(id=>document.getElementById(id).value='');
+  showMToast('Día agregado ✓');
+  setTimeout(()=>{ document.getElementById('mcard-'+newId)?.scrollIntoView({behavior:'smooth',block:'center'}); },100);
+}
+
+function openHotelEdit() {
+  document.getElementById('hotelEditModal').classList.add('open');
+  document.getElementById('hotel-edit-addr').value = hotel.addr;
+  document.getElementById('hotel-edit-url').value = hotel.url;
+  setTimeout(() => document.getElementById('hotel-edit-addr').focus(), 50);
+}
+function closeHotelEdit() { document.getElementById('hotelEditModal').classList.remove('open'); }
+function saveHotelEdit() {
+  const addr = document.getElementById('hotel-edit-addr').value.trim();
+  if (!addr) return;
+  hotel.addr = addr;
+  hotel.url = document.getElementById('hotel-edit-url').value.trim() || hotel.url;
+  hotelSave();
+  closeHotelEdit();
+  renderOutlets();
+  showMToast('Dirección guardada ✓');
+}
+
+let _toastEl = null;
+function showMToast(msg) {
+  if (!_toastEl) _toastEl = document.getElementById('mtoast');
+  if (!_toastEl) return;
+  _toastEl.textContent = msg;
+  _toastEl.classList.add('show');
+  clearTimeout(_toastEl._timer);
+  _toastEl._timer = setTimeout(() => _toastEl.classList.remove('show'), 2000);
+}
+
+// ─── SYNC DOT ────────────────────────────────────────────────
+let _syncTimer = null;
+function syncDotState(state) {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  if (state === 'saved') {
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(() => { dot.className = 'sync-dot'; }, 2500);
+  }
+}
+
+// Wrap fbSet to show sync feedback — called after _appInit when window._fb is guaranteed to exist
+function patchFbSyncDot() {
+  if (!window._fb) return;
+  const orig = window._fb.fbSet;
+  window._fb.fbSet = async function(docId, data) {
+    syncDotState('saving');
+    try {
+      await orig(docId, data);
+      syncDotState('saved');
+    } catch(e) {
+      syncDotState('error');
+      devError('fbSet error', e);
+    }
+  };
+}
+
+// ─── CUSTOM CONFIRM / ALERT ──────────────────────────────────
+let _confirmResolve = null;
+function showConfirm(msg, title = '¿Confirmar?', okLabel = 'Eliminar', safe = false) {
+  return new Promise(resolve => {
+    _confirmResolve = resolve;
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMsg').textContent = msg;
+    const okBtn = document.getElementById('confirmOk');
+    okBtn.textContent = okLabel;
+    okBtn.className = 'confirm-btn-ok' + (safe ? ' safe' : '');
+    document.getElementById('confirmOverlay').classList.add('open');
+    okBtn.onclick = () => { document.getElementById('confirmOverlay').classList.remove('open'); resolve(true); };
+    document.getElementById('confirmCancel').onclick = () => { document.getElementById('confirmOverlay').classList.remove('open'); resolve(false); };
+  });
+}
+function showAlert(msg, title = 'Atención') {
+  return new Promise(resolve => {
+    document.getElementById('alertTitle').textContent = title;
+    document.getElementById('alertMsg').textContent = msg;
+    document.getElementById('alertOverlay').classList.add('open');
+    document.getElementById('alertOk').onclick = () => { closeAlert(); resolve(); };
+  });
+}
+function closeAlert() {
+  document.getElementById('alertOverlay').classList.remove('open');
+}
+
+
+
+
+
+// listener se registra al final del script, después de que el DOM esté listo
+window.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('mealModal').addEventListener('click', function(e){
+    if(e.target===this) closeMealModal();
+  });
+  document.getElementById('wmAddModal').addEventListener('click', function(e){
+    if(e.target===this) wmCloseAddModal();
+  });
+  document.getElementById('hotelEditModal').addEventListener('click', function(e){
+    if(e.target===this) closeHotelEdit();
+  });
+});
+
+// ─── WALMART ───────────────────────────────────────────────
+const WM_DATA_KEY = 'walmart-orlando-data-v2';
+const WM_CHECKED_KEY = 'walmart-orlando-checked-v2';
+const WM_OPEN_KEY = 'walmart-orlando-open-v2';
+
+const wmCatMeta = {
+  pan:       { icon:'🥖', title:'Panadería y Snacks' },
+  lacteos:   { icon:'🥚', title:'Lácteos y Huevos' },
+  carnes:    { icon:'🥩', title:'Carnes y Fiambres' },
+  secos:     { icon:'🍝', title:'Secos y Enlatados' },
+  congelados:{ icon:'🧊', title:'Congelados' },
+  desayuno:  { icon:'☕', title:'Desayuno y Bebidas' },
+  extras:    { icon:'🎒', title:'Extras' },
+};
+
+window._setWmData = function(d) { wmData = d; };
+window._setShopData = function(d) {
+  if (d.items !== undefined) shopItems = d.items;
+  if (d.checked !== undefined) shopChecked = new Set(d.checked);
+};
+let wmData = [
+  { id:'pan', items:[
+    { id:'p1', name:'Pan lactal', qty:2, unit:'bolsas', price:2 },
+    { id:'p2', name:'Pan para hamburguesas', qty:1, unit:'paquete', price:2 },
+    { id:'p3', name:'Pan para salchichas', qty:1, unit:'paquete', price:2 },
+    { id:'p4', name:'Tortillas de harina', qty:1, unit:'paquete', price:3 },
+    { id:'p5', name:'Ritz o similares', qty:1, unit:'paquete 330g', price:4 },
+    { id:'p6', name:'Chippers', qty:1, unit:'bolsa 18oz', price:4 },
+    { id:'p7', name:'Pack variado snacks', qty:1, unit:'pack', price:10 },
+    { id:'p8', name:'Donettes Hostess', qty:1, unit:'bolsa 10oz', price:3 },
+    { id:'p9', name:'Rice Krispies Treats', qty:1, unit:'caja 32oz', price:12 },
+    { id:'p10', name:'Granola bars Nature Valley', qty:1, unit:'caja x12', price:4 },
+    { id:'p11', name:'Applesauce pouches GoGo Squeez', qty:1, unit:'pack x12', price:5 },
+    { id:'p12', name:'Nutella', qty:1, unit:'frasco 350g', price:5 },
+  ]},
+  { id:'lacteos', items:[
+    { id:'l1', name:'Huevos grandes', qty:1, unit:'cartón 18 uds', price:3 },
+    { id:'l2', name:'Leche', qty:1, unit:'galón (3.78 lts)', price:4 },
+    { id:'l3', name:'Manteca', qty:1, unit:'paquete 16oz', price:3 },
+    { id:'l4', name:'Yogurt', qty:1, unit:'pote 32oz', price:3 },
+    { id:'l5', name:'Queso feteado', qty:1, unit:'paquete 24oz', price:4 },
+    { id:'l6', name:'Parmesano', qty:1, unit:'paquete 8oz', price:3 },
+  ]},
+  { id:'carnes', items:[
+    { id:'c1', name:'Pechuga de pollo', qty:1, unit:'bandeja 5lb', price:12 },
+    { id:'c2', name:'Chuletas de cerdo', qty:1, unit:'bandeja 1lb', price:6 },
+    { id:'c3', name:'Jamón Great Value', qty:1, unit:'paquete 32oz', price:9 },
+    { id:'c4', name:'Bacon', qty:1, unit:'paquete 1lb', price:5 },
+    { id:'c5', name:'Salchichas Bar S', qty:1, unit:'paquete 12oz', price:1 },
+    { id:'c6', name:'Albóndigas Great Value', qty:1, unit:'bolsa 32oz', price:8 },
+  ]},
+  { id:'secos', items:[
+    { id:'s1', name:'Pasta Rotini', qty:2, unit:'bolsas 16oz', price:2 },
+    { id:'s2', name:'Arroz Great Value', qty:1, unit:'bolsa 32oz', price:2 },
+    { id:'s3', name:'Puré instantáneo', qty:1, unit:'caja 13oz', price:2 },
+    { id:'s4', name:'Salsa de pasta', qty:2, unit:'frascos', price:2 },
+    { id:'s5', name:'Maíz en lata', qty:3, unit:'latas 15oz', price:1 },
+    { id:'s6', name:'Ravioli Chef Boyardee', qty:2, unit:'latas 15oz', price:2 },
+    { id:'s7', name:'Corned Beef Hash', qty:1, unit:'lata 14oz', price:3 },
+    { id:'s8', name:'Rice-A-Roni', qty:1, unit:'caja 6.4oz', price:2 },
+    { id:'s9', name:'Sopa Maggi + Cabello de ángel', qty:1, unit:'combo', price:4 },
+    { id:'s10', name:'Velveeta Shells & Cheese', qty:3, unit:'cajas 12oz', price:3 },
+    { id:'s11', name:'Atún en lata', qty:1, unit:'pack x3', price:3 },
+    { id:'s12', name:'Sal', qty:1, unit:'paquete 26oz', price:1 },
+    { id:'s13', name:'Aceite', qty:1, unit:'botella 48fl', price:4 },
+    { id:'s14', name:'Salsa picante Tapatio', qty:1, unit:'botella chica', price:2 },
+  ]},
+  { id:'congelados', items:[
+    { id:'cn1', name:'Lasaña Stouffer familiar', qty:1, unit:'unidad 2lb', price:10 },
+    { id:'cn2', name:'Pizza Rising Crust', qty:1, unit:'unidad 29oz', price:5 },
+    { id:'cn3', name:'Corn dogs', qty:1, unit:'bolsa 27oz', price:7 },
+    { id:'cn4', name:'Mozzarella sticks', qty:1, unit:'bolsa 18oz', price:5 },
+    { id:'cn5', name:'Waffles EGGO', qty:1, unit:'caja 13oz', price:3 },
+    { id:'cn6', name:'Sausage Croissant Sandwich', qty:1, unit:'caja 5oz', price:6 },
+    { id:'cn7', name:'Tazón amantes de carne', qty:2, unit:'unidades 7oz', price:2 },
+    { id:'cn8', name:'Papas fritas', qty:1, unit:'bolsa 32oz', price:3 },
+    { id:'cn9', name:'Sandwichs jamón y queso', qty:2, unit:'paquetes 9oz', price:2 },
+  ]},
+  { id:'desayuno', items:[
+    { id:'d1', name:'Corn Flakes', qty:1, unit:'caja 18oz', price:3 },
+    { id:'d2', name:'Café instantáneo Great Value', qty:1, unit:'frasco 8oz', price:6 },
+    { id:'d3', name:'Té Great Value', qty:1, unit:'caja 8oz', price:3 },
+    { id:'d4', name:'Jugo Tropicana', qty:1, unit:'botella 89oz', price:9 },
+    { id:'d5', name:'Agua Great Value', qty:1, unit:'pack 20 lts', price:6 },
+  ]},
+  { id:'extras', items:[
+    { id:'e1', name:'Bolsas Ziploc Gallon', qty:1, unit:'caja x15', price:4 },
+    { id:'e2', name:'Maní salado o mix de frutos secos', qty:1, unit:'bolsa', price:4 },
+  ]},
+];
+
+let wmChecked = new Set();
+let wmOpenSections = new Set(Object.keys(wmCatMeta));
+let wmEditingItem = null; // { catId, itemId } or null
+
+function wmSave() {
+  syncedSave(WM_DATA_KEY, wmData, 'walmart', { data: wmData });
+  syncedSave(WM_CHECKED_KEY, [...wmChecked], 'wmChecked', { checked: [...wmChecked] });
+  // wmOpenSections es solo de UI local, no se sincroniza con Firebase.
+  try { localStorage.setItem(WM_OPEN_KEY, JSON.stringify([...wmOpenSections])); } catch(e){}
+}
+
+function wmLoad() {
+  const d = syncedLoad(WM_DATA_KEY, window._wmDataFromFb);
+  if (d) wmData = d;
+
+  const c = syncedLoad(WM_CHECKED_KEY, window._wmCheckedFromFb);
+  if (c) c.forEach(k => wmChecked.add(k));
+
+  const o = localLoad(WM_OPEN_KEY);
+  if (o) { wmOpenSections.clear(); o.forEach(k => wmOpenSections.add(k)); }
+}
+
+function wmGetCat(catId) { return wmData.find(c => c.id === catId); }
+function wmGetItem(catId, itemId) { return wmGetCat(catId)?.items.find(i => i.id === itemId); }
+
+function wmItemPrice(item) { return (item.qty || 1) * (item.price || 0); }
+
+function wmTotalAll() { return wmData.reduce((a,c) => a + c.items.reduce((b,i) => b + wmItemPrice(i), 0), 0); }
+function wmTotalChecked() {
+  let t = 0;
+  wmData.forEach(cat => cat.items.forEach(item => {
+    if (wmChecked.has(item.id)) t += wmItemPrice(item);
+  }));
+  return t;
+}
+function wmCountAll() { return wmData.reduce((a,c) => a + c.items.length, 0); }
+
+function wmToggle(itemId, e) {
+  e.stopPropagation();
+  if (wmChecked.has(itemId)) wmChecked.delete(itemId);
+  else wmChecked.add(itemId);
+  wmSave();
+  renderWalmart();
+}
+
+function wmToggleSection(catId) {
+  if (wmOpenSections.has(catId)) wmOpenSections.delete(catId);
+  else wmOpenSections.add(catId);
+  wmSave();
+  renderWalmart();
+}
+
+async function wmDeleteItem(catId, itemId, e) {
+  e.stopPropagation();
+  const ok = await showConfirm('¿Eliminar este producto de la lista?', '¿Eliminar producto?', 'Eliminar');
+  if (!ok) return;
+  const cat = wmGetCat(catId);
+  cat.items = cat.items.filter(i => i.id !== itemId);
+  wmChecked.delete(itemId);
+  wmSave();
+  renderWalmart();
+  showMToast('Producto eliminado');
+}
+
+function wmStartEdit(catId, itemId, e) {
+  e.stopPropagation();
+  wmEditingItem = { catId, itemId };
+  renderWalmart();
+  setTimeout(() => document.getElementById('wm-edit-name')?.focus(), 50);
+}
+
+function wmCancelEdit() {
+  wmEditingItem = null;
+  renderWalmart();
+}
+
+function wmSaveEdit() {
+  const { catId, itemId } = wmEditingItem;
+  const item = wmGetItem(catId, itemId);
+  const name = document.getElementById('wm-edit-name').value.trim();
+  const qty  = parseFloat(document.getElementById('wm-edit-qty').value) || 1;
+  const unit = document.getElementById('wm-edit-unit').value.trim();
+  const price= parseFloat(document.getElementById('wm-edit-price').value) || 0;
+  if (!name) return;
+  item.name  = name;
+  item.qty   = qty;
+  item.unit  = unit;
+  item.price = price;
+  wmEditingItem = null;
+  wmSave();
+  renderWalmart();
+  showMToast('Guardado ✓');
+}
+
+function wmOpenAddModal() {
+  document.getElementById('wmAddModal').classList.add('open');
+  document.getElementById('wm-add-name').focus();
+}
+function wmCloseAddModal() {
+  document.getElementById('wmAddModal').classList.remove('open');
+  ['wm-add-name','wm-add-qty','wm-add-unit','wm-add-price'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+}
+function wmAddItem() {
+  const name  = document.getElementById('wm-add-name').value.trim();
+  const catId = document.getElementById('wm-add-cat').value;
+  const qty   = parseFloat(document.getElementById('wm-add-qty').value) || 1;
+  const unit  = document.getElementById('wm-add-unit').value.trim() || '';
+  const price = parseFloat(document.getElementById('wm-add-price').value) || 0;
+  if (!name) {
+    const el = document.getElementById('wm-add-name');
+    el.classList.add('error');
+    document.getElementById('wm-add-name-err').classList.add('show');
+    el.focus();
+    return;
+  }
+  const cat = wmGetCat(catId);
+  const newId = 'custom-' + Date.now();
+  cat.items.push({ id: newId, name, qty, unit, price });
+  wmOpenSections.add(catId);
+  wmSave();
+  renderWalmart();
+  wmCloseAddModal();
+  showMToast('Producto agregado ✓');
+}
+
+async function wmReset() {
+  const ok = await showConfirm('Se van a desmarcar todos los productos del carrito.', '¿Reiniciar checks?', 'Reiniciar', true);
+  if (!ok) return;
+  wmChecked.clear();
+  wmSave();
+  renderWalmart();
+}
+
+function renderWalmart() {
+  const panel = document.getElementById('panel-walmart');
+  const total = wmCountAll();
+  const checked = wmChecked.size;
+  const pct = total > 0 ? Math.round(checked / total * 100) : 0;
+  const totalAll = wmTotalAll().toFixed(2);
+  const totalChk = wmTotalChecked().toFixed(2);
+
+  let html = '<div class="wm-panel">';
+
+  html += `
+    <div class="wm-summary-bar">
+      <div class="wm-stat"><div class="wm-stat-val">${checked}</div><div class="wm-stat-lbl">en carrito</div></div>
+      <div class="wm-stat"><div class="wm-stat-val">${total - checked}</div><div class="wm-stat-lbl">pendientes</div></div>
+      <div class="wm-stat"><div class="wm-stat-val">${pct}%</div><div class="wm-stat-lbl">listo</div></div>
+    </div>
+    <div class="wm-total-bar">
+      <span class="wm-total-label">Total del carrito</span>
+      <span class="wm-total-val">$${totalChk} <span style="font-size:12px;color:var(--muted);font-weight:400;">/ $${totalAll}</span></span>
+    </div>
+    <div class="wm-progress-bar-bg">
+      <div class="wm-progress-bar-fill" style="width:${pct}%"></div>
+    </div>`;
+
+  wmData.forEach(cat => {
+    const meta = wmCatMeta[cat.id] || { icon:'📦', title: cat.id };
+    const catDone = cat.items.filter(i => wmChecked.has(i.id)).length;
+    const isOpen = wmOpenSections.has(cat.id);
+    const isEditing = wmEditingItem?.catId === cat.id;
+
+    html += `
+      <div class="wm-section ${isOpen?'open':''}" id="wmsec-${cat.id}">
+        <div class="wm-section-header" onclick="wmToggleSection('${cat.id}')">
+          <span class="wm-section-icon">${meta.icon}</span>
+          <span class="wm-section-title">${meta.title}</span>
+          <span class="wm-section-count">${catDone}/${cat.items.length}</span>
+          <span class="wm-section-chevron">▾</span>
+        </div>
+        <div class="wm-items">`;
+
+    cat.items.forEach(item => {
+      const isChecked = wmChecked.has(item.id);
+      const isEditingThis = wmEditingItem?.catId === cat.id && wmEditingItem?.itemId === item.id;
+      const lineTotal = (wmItemPrice(item)).toFixed(2);
+
+      if (isEditingThis) {
+        html += `
+          <div class="wm-item wm-item-editing" onclick="event.stopPropagation()">
+            <div class="wm-edit-form">
+              <input class="wm-edit-input wm-edit-name" id="wm-edit-name" placeholder="Nombre del producto" value="${escapeHtml(item.name)}">
+              <div class="wm-edit-row">
+                <input class="wm-edit-input wm-edit-small" id="wm-edit-qty" type="number" min="0.1" step="0.1" placeholder="Cant." value="${item.qty}">
+                <input class="wm-edit-input wm-edit-unit" id="wm-edit-unit" placeholder="Unidad (oz, lb, caja…)" value="${escapeHtml(item.unit)}">
+                <input class="wm-edit-input wm-edit-small" id="wm-edit-price" type="number" min="0" step="0.01" placeholder="$ c/u" value="${item.price}">
+              </div>
+              <div class="wm-edit-hint">Precio unitario. Total = cantidad × precio.</div>
+              <div class="wm-edit-actions">
+                <button class="mbtn" onclick="wmCancelEdit()">Cancelar</button>
+                <button class="mbtn msave" onclick="wmSaveEdit()">Guardar</button>
+              </div>
+            </div>
+          </div>`;
+      } else {
+        html += `
+          <div class="wm-item ${isChecked?'checked':''}" onclick="wmToggle('${item.id}', event)">
+            <div class="wm-check">${isChecked?'✓':''}</div>
+            <div class="wm-item-body">
+              <div class="wm-item-name">${escapeHtml(item.name)}</div>
+              <div class="wm-item-detail">${item.qty} ${escapeHtml(item.unit)}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+              <div class="wm-item-price">$${lineTotal}</div>
+              <button class="wm-icon-btn" onclick="wmStartEdit('${cat.id}','${item.id}',event)" title="Editar" aria-label="Editar ${escapeHtml(item.name)}">✏️</button>
+              <button class="wm-icon-btn wm-icon-del" onclick="wmDeleteItem('${cat.id}','${item.id}',event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(item.name)}">✕</button>
+            </div>
+          </div>`;
+      }
+    });
+
+    html += `</div></div>`;
+  });
+
+  html += `
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
+      <button class="wm-reset-btn" onclick="wmOpenAddModal()">+ Agregar producto</button>
+      <button class="wm-reset-btn" onclick="wmReset()">↺ Reiniciar checks</button>
+    </div>`;
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+// Update switchSection to handle 3 main sections
+const sectionMeta = {
+  outlets: {
+    title: 'Outlets',
+    accent: 'Orlando',
+    subtitle: '🛍️ Cronograma de compras · 25–27 enero',
+    theme: 'theme-outlets'
+  },
+  comidas: {
+    title: 'Orlando',
+    accent: 'Meal Planning',
+    subtitle: '🍽️ Planificación de comidas · 17–28 enero',
+    theme: 'theme-comidas'
+  },
+  walmart: {
+    title: 'Orlando',
+    accent: 'Market',
+    subtitle: '🛒 Lista de compras · Walmart Supercenter',
+    theme: 'theme-walmart'
+  },
+  parques: {
+    title: 'Orlando',
+    accent: 'Theme Parks',
+    subtitle: '🎢 Tracker de atracciones · Disney & Universal',
+    theme: 'theme-parques'
+  }
+};
+
+function switchSection(section) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+  document.getElementById('panel-' + section).classList.add('active');
+  document.getElementById('nav-' + section).classList.add('active');
+
+  // Update header title & theme
+  const meta = sectionMeta[section];
+  document.getElementById('main-title').innerHTML = meta.title + ' <span class="ht-accent">' + meta.accent + '</span>';
+  document.getElementById('main-subtitle').textContent = meta.subtitle;
+  document.body.className = meta.theme;
+
+  document.getElementById('addDayFab').style.display = section === 'comidas' ? 'block' : 'none';
+
+  if (section === 'comidas') renderComidas();
+  if (section === 'walmart') renderWalmart();
+  if (section === 'outlets') renderOutlets();
+  if (section === 'parques') renderParques();
+
+  // Update global counter label for parques
+  if (section === 'parques') {
+    updateParquesCounter();
+  } else {
+    updateGlobal();
+  }
+
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ─── OUTLETS ───────────────────────────────────────────────
+
+function shopSave() {
+  const payload = { items: shopItems, checked: [...shopChecked] };
+  syncedSave(SHOPPING_KEY, payload, 'shopping', payload);
+}
+function shopLoad() {
+  const fbValue = (window._shopFromFb && window._shopFromFb.items) ? window._shopFromFb : undefined;
+  const d = syncedLoad(SHOPPING_KEY, fbValue);
+  shopItems = d?.items || getDefaultShopItems();
+  shopChecked = new Set(d?.checked || []);
+}
+function getDefaultShopItems() {
+  return [
+    { id:'si1', catId:'remeras', name:'Remeras básicas (pack)', size:'M', store:'Ross / Burlington', priority:'alta', needIt:true },
+    { id:'si2', catId:'remeras', name:'Remera Nike Dri-FIT', size:'M', store:'Nike Clearance', priority:'alta', needIt:true },
+    { id:'si3', catId:'pantalones', name:'Jean Levi\'s slim', size:'32x30', store:'Vineland Outlets', priority:'media', needIt:true },
+    { id:'si4', catId:'ropa-deportiva', name:'Short deportivo', size:'M', store:'Nike / Ross', priority:'media', needIt:true },
+    { id:'si5', catId:'calzado', name:'Zapatillas running Nike', size:'42', store:'Nike Clearance', priority:'alta', needIt:true },
+    { id:'si6', catId:'accesorios', name:'Mochila / Backpack', size:'—', store:'Ross / Burlington', priority:'media', needIt:true },
+    { id:'si7', catId:'varios', name:'Medias (pack)', size:'único', store:'Five Below', priority:'baja', needIt:true },
+  ];
+}
+
+function shopGetItem(id) { return shopItems.find(i => i.id === id); }
+
+let _outletsFirstRender = true;
+
+function renderOutlets() {
+  // shopLoad() removido de acá — solo se carga al init para no pisar cambios en memoria
+  const panel = document.getElementById('panel-outlets');
+  const dayLabels = ['Lun 25/01','Mar 26/01','Mié 27/01'];
+  const dayNames = ['Día 1','Día 2','Día 3'];
+
+  let html = `<div class="outlets-panel">
+    <div class="outlets-subtabs">
+      <button class="outlets-stab${outletSubTab==='cronograma'?' active':''}" onclick="switchOutletTab('cronograma')">📅 Cronograma</button>
+      <button class="outlets-stab${outletSubTab==='lista'?' active':''}" onclick="switchOutletTab('lista')">👕 Lista de Compras</button>
+    </div>`;
+
+  if (outletSubTab === 'cronograma') {
+    // Day sub-tabs
+    const currentDay = typeof currentOutletDay !== 'undefined' ? currentOutletDay : 0;
+    html += `<div class="outlets-day-tabs">
+      ${dayNames.map((n,i) => `<button class="outlets-day-tab${i===currentDay?' active':''}" onclick="switchOutletDay(${i})">${n}<span class="odt-date">${dayLabels[i]}</span></button>`).join('')}
+    </div>`;
+    html += `<div class="outlets-day-content">`;
+    html += renderDayContent(currentDay);
+    html += `</div>`;
+  } else {
+    // Shopping list
+    html += renderShopList();
+  }
+
+  html += `</div>`;
+  panel.innerHTML = html;
+
+  // Init map after DOM is ready
+  if (outletSubTab === 'cronograma') {
+    const currentDay = typeof currentOutletDay !== 'undefined' ? currentOutletDay : 0;
+    setTimeout(() => initDayMap(currentDay), 100);
+  }
+
+  // Apply slideIn animation only on the first render
+  if (_outletsFirstRender) {
+    _outletsFirstRender = false;
+    panel.querySelectorAll('.stop-card').forEach((card, i) => {
+      card.style.animation = `slideIn .3s ease both`;
+      card.style.animationDelay = `${i * 0.04}s`;
+    });
+  }
+}
+
+
+function switchOutletTab(tab) {
+  outletSubTab = tab;
+  renderOutlets();
+}
+
+function switchOutletDay(d) {
+  currentOutletDay = d;
+  renderOutlets();
+}
+
+function renderDayContent(d) {
+  const day = days[d];
+  const total = day.stops.length;
+  const done = visited[d].size;
+  const pct = total > 0 ? Math.round(done / total * 100) : 0;
+  const allDone = done === total && total > 0;
+
+  let html = `
+    <div class="hotel-bar" id="hotel-bar-${d}">
+      <a href="${hotel.url}" style="display:flex;align-items:center;gap:10px;flex:1;text-decoration:none;min-width:0" onclick="event.stopPropagation()">
+        <div class="hotel-icon">🏠</div>
+        <div class="hotel-info">
+          <div class="hotel-label">Punto de partida</div>
+          <div class="hotel-addr">${hotel.addr}</div>
+        </div>
+        <div class="hotel-arrow">↗</div>
+      </a>
+      <button class="wm-icon-btn" onclick="openHotelEdit()" title="Editar dirección" aria-label="Editar punto de partida" style="flex-shrink:0;font-size:14px;opacity:0.4">✏️</button>
+    </div>`;
+
+  // Editable day label
+  if (stopEditingIdx?.dayIdx === d && stopEditingIdx?.stopIdx === 'label') {
+    html += `<div style="margin-bottom:14px">
+      <input id="stop-edit-label" class="wm-edit-input" style="width:100%;margin-bottom:6px" value="${escapeHtml(day.label)}">
+      <div style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="mbtn" onclick="stopCancelEdit()">Cancelar</button>
+        <button class="mbtn msave" onclick="stopSaveDayLabel(${d})">Guardar</button>
+      </div>
+    </div>`;
+  } else {
+    html += `<div class="day-label" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <span style="flex:1">${escapeHtml(day.label)}</span>
+      <button class="wm-icon-btn" onclick="stopStartEditLabel(${d});event.stopPropagation()" title="Editar descripción del día" style="flex-shrink:0">✏️</button>
+    </div>`;
+  }
+
+  html += `<div class="progress-wrap">
+      <div class="progress-meta">
+        <div class="progress-stats">
+          <div class="stat"><div class="stat-val ${done>0?'accent':''}">${done}</div><div class="stat-lbl">visitadas</div></div>
+          <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">paradas</div></div>
+          <div class="stat"><div class="stat-val ${pct===100?'accent':''}">${pct}%</div><div class="stat-lbl">completado</div></div>
+        </div>
+        <button class="reset-btn" onclick="resetDay(${d})">↺ reiniciar</button>
+      </div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+
+  if (allDone) {
+    html += `<div class="all-done" style="display:block">
+      <div class="all-done-emoji">🛍️</div>
+      <div class="all-done-title">¡Día completado!</div>
+      <div class="all-done-sub">Visitaste las ${total} paradas del día.</div>
+    </div>`;
+  }
+
+  day.stops.forEach((s, i) => {
+    const isV = visited[d].has(i);
+    const isEditingThis = stopEditingIdx?.dayIdx === d && stopEditingIdx?.stopIdx === i;
+
+    if (isEditingThis) {
+      const badgeVal = s.badge || '';
+      const badgeText = escapeHtml(s.badgeText || '');
+      html += `
+        <div class="stop-card" onclick="event.stopPropagation()" style="cursor:default;flex-direction:column;align-items:stretch">
+          <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--accent)">✏️ Editar parada</div>
+          <div class="wm-edit-form" style="width:100%">
+            <input class="wm-edit-input" id="stop-edit-name" placeholder="Nombre del lugar" value="${escapeHtml(s.name)}" style="margin-bottom:6px;width:100%">
+            <textarea class="wm-edit-input" id="stop-edit-desc" placeholder="Descripción (horarios, tips…)" style="margin-bottom:6px;width:100%;min-height:56px;resize:vertical;font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.4">${s.desc}</textarea>
+            <input class="wm-edit-input" id="stop-edit-url" placeholder="URL de Google Maps" value="${escapeHtml(s.url||'')}" style="margin-bottom:6px;width:100%">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+              <select class="wm-edit-input" id="stop-edit-badge">
+                <option value=""${badgeVal===''?' selected':''}>Sin badge</option>
+                <option value="star"${badgeVal==='star'?' selected':''}>⭐ Imperdible</option>
+                <option value="rec"${badgeVal==='rec'?' selected':''}>✅ Recomendado</option>
+              </select>
+              <input class="wm-edit-input" id="stop-edit-badgetext" placeholder="Texto badge (ej: N°1)" value="${badgeText}">
+            </div>
+            <div class="wm-edit-actions">
+              <button class="mbtn" onclick="stopCancelEdit()">Cancelar</button>
+              <button class="mbtn msave" onclick="stopSaveEdit(${d},${i})">Guardar</button>
+            </div>
+          </div>
+        </div>`;
+    } else {
+      let badge = '';
+      if (s.badge === 'star') badge = `<span class="badge badge-star">${escapeHtml(s.badgeText)}</span>`;
+      if (s.badge === 'rec')  badge = `<span class="badge badge-rec">${escapeHtml(s.badgeText)}</span>`;
+      html += `
+        <div class="stop-card${isV?' visited':''}" draggable="true"
+          ondragstart="stopDragStart(${d},${i},event)"
+          ondragover="stopDragOver(${d},${i},event)"
+          ondragend="stopDragEnd(event)"
+          ondrop="stopDrop(${d},${i},event)"
+          onclick="toggleStop(${d},${i})">
+          <div class="stop-drag-handle" onclick="event.stopPropagation()" ondragstart="event.stopPropagation()" title="Arrastrar para reordenar" aria-label="Arrastrar para reordenar" role="button">⠿</div>
+          <div class="stop-num">${isV ? '✓' : i+1}</div>
+          <div class="stop-body">
+            <div class="stop-name">${escapeHtml(s.name)}</div>
+            <div class="stop-desc">${escapeHtml(s.desc)}</div>
+            <div class="stop-footer">
+              <div class="badges">${badge}</div>
+              <div class="stop-footer-actions">
+                <button class="wm-icon-btn stop-action-btn" onclick="stopMoveUp(${d},${i},event)" title="Subir" aria-label="Mover parada arriba" ${i===0?'style="opacity:0.25;pointer-events:none"':''}>↑</button>
+                <button class="wm-icon-btn stop-action-btn" onclick="stopMoveDown(${d},${i},event)" title="Bajar" aria-label="Mover parada abajo" ${i===day.stops.length-1?'style="opacity:0.25;pointer-events:none"':''}>↓</button>
+                ${s.url && /^https?:\/\//i.test(s.url) ? `<a class="maps-btn" href="${escapeHtml(s.url)}" onclick="event.stopPropagation()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                  Maps
+                </a>` : ''}
+                <button class="wm-icon-btn stop-action-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada" aria-label="Editar ${escapeHtml(s.name)}">✏️</button>
+                <button class="wm-icon-btn wm-icon-del stop-action-btn" onclick="stopDelete(${d},${i},event)" title="Eliminar parada" aria-label="Eliminar ${escapeHtml(s.name)}">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+  });
+
+  // Add stop form or button
+  if (stopAddingDay === d) {
+    html += `
+      <div class="stop-card" onclick="event.stopPropagation()" style="cursor:default;flex-direction:column;align-items:stretch">
+        <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--green)">+ Nueva parada</div>
+        <div class="wm-edit-form" style="width:100%">
+          <input class="wm-edit-input" id="stop-add-name" placeholder="Nombre del lugar" style="margin-bottom:6px;width:100%">
+          <textarea class="wm-edit-input" id="stop-add-desc" placeholder="Descripción (horarios, tips…)" style="margin-bottom:6px;width:100%;min-height:56px;resize:vertical;font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.4"></textarea>
+          <input class="wm-edit-input" id="stop-add-url" placeholder="URL de Google Maps (opcional)" style="margin-bottom:6px;width:100%">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+            <select class="wm-edit-input" id="stop-add-badge">
+              <option value="">Sin badge</option>
+              <option value="star">⭐ Imperdible</option>
+              <option value="rec">✅ Recomendado</option>
+            </select>
+            <input class="wm-edit-input" id="stop-add-badgetext" placeholder="Texto badge (ej: N°1)">
+          </div>
+          <div class="wm-edit-actions">
+            <button class="mbtn" onclick="stopCancelAdd()">Cancelar</button>
+            <button class="mbtn msave" onclick="stopAddConfirm(${d})">Agregar</button>
+          </div>
+        </div>
+      </div>`;
+  } else {
+    html += `<button onclick="stopStartAdd(${d})" style="width:100%;padding:12px;border:1px dashed var(--border2);border-radius:var(--radius);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:2px" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted)'">+ Agregar parada</button>`;
+  }
+
+  // ─── MAP ───────────────────────────────────────────────────
+  const stopsWithCoords = day.stops.filter(s => s.lat && s.lng);
+  if (stopsWithCoords.length > 0) {
+    html += `
+      <div class="day-map-wrap" style="margin-top:14px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);">
+        <div class="day-map-header" style="display:flex;align-items:center;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);">
+          <div class="day-map-title">🗺️ Mapa del día · ${stopsWithCoords.length} paradas</div>
+        </div>
+        <div id="day-map-container-${d}" class="day-map-container"></div>
+      </div>`;
+  }
+
+  return html;
+}
+
+// ─── MAP LOGIC ──────────────────────────────────────────────
+let _leafletMap = null;
+
+function initDayMap(d) {
+  const container = document.getElementById(`day-map-container-${d}`);
+  if (!container) return;
+
+  // Destroy previous map instance
+  if (_leafletMap) {
+    _leafletMap.remove();
+    _leafletMap = null;
+  }
+  container.innerHTML = '';
+
+  const day = days[d];
+  const stopsWithCoords = day.stops.filter(s => s.lat && s.lng);
+  if (!stopsWithCoords.length) return;
+
+  _leafletMap = L.map(container, { zoomControl: true, attributionControl: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(_leafletMap);
+
+  const bounds = [];
+
+  stopsWithCoords.forEach((s) => {
+    const originalIdx = day.stops.indexOf(s);
+    const isVisited = visited[d].has(originalIdx);
+    const isStar = s.badge === 'star';
+    const isRec = s.badge === 'rec';
+
+    const color = isVisited ? '#555' : isStar ? '#2563eb' : isRec ? '#10b981' : '#7c3aed';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:28px;height:28px;border-radius:50%;
+        background:${color};
+        color:${isVisited?'#888':'#fff'};
+        display:flex;align-items:center;justify-content:center;
+        font-family:'DM Sans',sans-serif;font-weight:800;font-size:11px;
+        border:2px solid ${isVisited?'#333':'rgba(255,255,255,0.25)'};
+        box-shadow:0 2px 8px rgba(0,0,0,0.5);
+        opacity:${isVisited?'0.5':'1'};
+      ">${originalIdx + 1}</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      popupAnchor: [0, -16]
+    });
+
+    const badgeHtml = isStar ? `<span style="font-size:10px;color:#2563eb">⭐ Imperdible</span>` :
+                      isRec  ? `<span style="font-size:10px;color:#10b981">✅ ${escapeHtml(s.badgeText)}</span>` : '';
+    const visitedHtml = isVisited ? `<span style="font-size:10px;color:#10b981">✓ Visitado</span>` : '';
+
+    L.marker([s.lat, s.lng], { icon })
+      .bindPopup(`
+        <div class="map-popup-name">${originalIdx + 1}. ${escapeHtml(s.name)}</div>
+        <div class="map-popup-desc">${escapeHtml(s.desc)}</div>
+        ${badgeHtml || visitedHtml ? `<div style="margin-top:5px;display:flex;gap:6px">${badgeHtml}${visitedHtml}</div>` : ''}
+        ${s.url && /^https?:\/\//i.test(s.url) ? `<a href="${escapeHtml(s.url)}" target="_blank" style="display:inline-block;margin-top:7px;font-size:11px;color:#2563eb;text-decoration:none;font-family:'DM Sans',sans-serif;font-weight:600">↗ Abrir en Maps</a>` : ''}
+      `, { maxWidth: 220 })
+      .addTo(_leafletMap);
+
+    bounds.push([s.lat, s.lng]);
+  });
+
+  _leafletMap.fitBounds(bounds, { padding: [28, 28] });
+  setTimeout(() => _leafletMap && _leafletMap.invalidateSize(), 150);
+}
+function stopStartEdit(dayIdx, stopIdx) {
+  stopEditingIdx = { dayIdx, stopIdx };
+  stopAddingDay = null;
+  renderOutlets();
+  setTimeout(() => document.getElementById('stop-edit-name')?.focus(), 50);
+}
+function stopStartEditLabel(dayIdx) {
+  stopEditingIdx = { dayIdx, stopIdx: 'label' };
+  stopAddingDay = null;
+  renderOutlets();
+  setTimeout(() => document.getElementById('stop-edit-label')?.focus(), 50);
+}
+function stopCancelEdit() {
+  stopEditingIdx = null;
+  renderOutlets();
+}
+function stopSaveEdit(dayIdx, stopIdx) {
+  const nameEl = document.getElementById('stop-edit-name');
+  const name = nameEl.value.trim();
+  if (!name) {
+    nameEl.style.borderColor = '#ef4444';
+    nameEl.focus();
+    nameEl.setAttribute('placeholder', '⚠ El nombre no puede estar vacío');
+    setTimeout(() => { nameEl.style.borderColor = ''; nameEl.placeholder = 'Nombre del lugar'; }, 2000);
+    return;
+  }
+  days[dayIdx].stops[stopIdx] = {
+    name,
+    desc: document.getElementById('stop-edit-desc').value.trim(),
+    url: document.getElementById('stop-edit-url').value.trim(),
+    badge: document.getElementById('stop-edit-badge').value || undefined,
+    badgeText: document.getElementById('stop-edit-badgetext').value.trim() || undefined,
+  };
+  stopEditingIdx = null;
+  saveState();
+  renderOutlets();
+  showMToast('Parada guardada ✓');
+}
+function stopSaveDayLabel(dayIdx) {
+  const label = document.getElementById('stop-edit-label').value.trim();
+  if (!label) return;
+  days[dayIdx].label = label;
+  stopEditingIdx = null;
+  saveState();
+  renderOutlets();
+  showMToast('Descripción guardada ✓');
+}
+async function stopDelete(dayIdx, stopIdx, e) {
+  e && e.stopPropagation();
+  const ok = await showConfirm('¿Eliminar esta parada del cronograma?', '¿Eliminar parada?', 'Eliminar');
+  if (!ok) return;
+  days[dayIdx].stops.splice(stopIdx, 1);
+  // Rebuild visited set for this day to avoid index gaps
+  const newVisited = new Set();
+  [...visited[dayIdx]].forEach(idx => { if (idx < stopIdx) newVisited.add(idx); else if (idx > stopIdx) newVisited.add(idx - 1); });
+  visited[dayIdx] = newVisited;
+  saveState();
+  renderOutlets();
+  updateGlobal();
+  showMToast('Parada eliminada');
+}
+function stopStartAdd(dayIdx) {
+  stopAddingDay = dayIdx;
+  stopEditingIdx = null;
+  renderOutlets();
+  setTimeout(() => document.getElementById('stop-add-name')?.focus(), 50);
+}
+function stopCancelAdd() {
+  stopAddingDay = null;
+  renderOutlets();
+}
+function stopAddConfirm(dayIdx) {
+  const nameEl = document.getElementById('stop-add-name');
+  const name = nameEl.value.trim();
+  if (!name) {
+    nameEl.style.borderColor = '#ef4444';
+    nameEl.focus();
+    nameEl.setAttribute('placeholder', '⚠ Escribí el nombre del lugar');
+    setTimeout(() => { nameEl.style.borderColor = ''; nameEl.placeholder = 'Nombre del lugar'; }, 2000);
+    return;
+  }
+  days[dayIdx].stops.push({
+    name,
+    desc: document.getElementById('stop-add-desc').value.trim(),
+    url: document.getElementById('stop-add-url').value.trim(),
+    badge: document.getElementById('stop-add-badge').value || undefined,
+    badgeText: document.getElementById('stop-add-badgetext').value.trim() || undefined,
+  });
+  stopAddingDay = null;
+  saveState();
+  renderOutlets();
+  updateGlobal();
+  showMToast('Parada agregada ✓');
+}
+
+// ─── MOVE UP / DOWN ─────────────────────────────────────────
+function stopMoveUp(dayIdx, stopIdx, e) {
+  e && e.stopPropagation();
+  if (stopIdx === 0) return;
+  const stops = days[dayIdx].stops;
+  [stops[stopIdx - 1], stops[stopIdx]] = [stops[stopIdx], stops[stopIdx - 1]];
+  // Fix visited indices
+  const vis = visited[dayIdx];
+  const hadPrev = vis.has(stopIdx - 1);
+  const hadCurr = vis.has(stopIdx);
+  if (hadPrev) vis.add(stopIdx); else vis.delete(stopIdx);
+  if (hadCurr) vis.add(stopIdx - 1); else vis.delete(stopIdx - 1);
+  saveState();
+  renderOutlets();
+}
+function stopMoveDown(dayIdx, stopIdx, e) {
+  e && e.stopPropagation();
+  if (stopIdx >= days[dayIdx].stops.length - 1) return;
+  const stops = days[dayIdx].stops;
+  [stops[stopIdx], stops[stopIdx + 1]] = [stops[stopIdx + 1], stops[stopIdx]];
+  const vis = visited[dayIdx];
+  const hadCurr = vis.has(stopIdx);
+  const hadNext = vis.has(stopIdx + 1);
+  if (hadNext) vis.add(stopIdx); else vis.delete(stopIdx);
+  if (hadCurr) vis.add(stopIdx + 1); else vis.delete(stopIdx + 1);
+  saveState();
+  renderOutlets();
+}
+
+// ─── DRAG & DROP ────────────────────────────────────────────
+let dragSrc = null; // { dayIdx, stopIdx }
+function stopDragStart(dayIdx, stopIdx, e) {
+  dragSrc = { dayIdx, stopIdx };
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function stopDragOver(dayIdx, stopIdx, e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (!dragSrc || (dragSrc.dayIdx === dayIdx && dragSrc.stopIdx === stopIdx)) return;
+  document.querySelectorAll('.stop-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+  e.currentTarget.classList.add('drag-over');
+}
+function stopDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.stop-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+  dragSrc = null;
+}
+function stopDrop(dayIdx, stopIdx, e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragSrc) return;
+  const { dayIdx: srcDay, stopIdx: srcStop } = dragSrc;
+  if (srcDay !== dayIdx || srcStop === stopIdx) { dragSrc = null; return; }
+  // Reorder stops
+  const stops = days[dayIdx].stops;
+  const moved = stops.splice(srcStop, 1)[0];
+  const targetIdx = srcStop < stopIdx ? stopIdx - 1 : stopIdx;
+  stops.splice(targetIdx, 0, moved);
+  // Rebuild visited for this day
+  const vis = visited[dayIdx];
+  const visitedArr = [...vis];
+  const newVis = new Set();
+  // map old indices to new
+  visitedArr.forEach(oldIdx => {
+    let newIdx = oldIdx;
+    if (oldIdx === srcStop) {
+      newIdx = targetIdx;
+    } else if (srcStop < stopIdx) {
+      if (oldIdx > srcStop && oldIdx <= targetIdx) newIdx = oldIdx - 1;
+    } else {
+      if (oldIdx >= targetIdx && oldIdx < srcStop) newIdx = oldIdx + 1;
+    }
+    newVis.add(newIdx);
+  });
+  visited[dayIdx] = newVis;
+  dragSrc = null;
+  saveState();
+  renderOutlets();
+  showMToast('Parada reordenada ✓');
+}
+
+function renderShopList() {
+  const prioColor = { alta:'#ef4444', media:'var(--accent)', baja:'var(--green)' };
+  const isNeed = shopListTab === 'need';
+  const filtered = shopItems.filter(i => isNeed ? i.needIt !== false : i.needIt === false);
+
+  let html = `
+  <div style="display:flex;gap:6px;margin-bottom:14px">
+    <button onclick="shopListTab='need';renderOutlets()" style="flex:1;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${isNeed?'var(--accent)':'var(--border2)'};background:${isNeed?'var(--accent)':'transparent'};color:${isNeed?'#fff':'var(--muted)'};font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✅ A comprar</button>
+    <button onclick="shopListTab='noneed';renderOutlets()" style="flex:1;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${!isNeed?'#ef4444':'var(--border2)'};background:${!isNeed?'rgba(239,68,68,0.12)':'transparent'};color:${!isNeed?'#ef4444':'var(--muted)'};font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">🚫 No necesito</button>
+  </div>`;
+
+  shopCats.forEach(cat => {
+    const catItems = filtered.filter(i => i.catId === cat.id);
+    if (catItems.length === 0) return;
+    const catDone = catItems.filter(i => shopChecked.has(i.id)).length;
+    const isOpen = shopOpenSections.has(cat.id);
+
+    html += `<div class="wm-section${isOpen?' open':''}" id="shopsec-${cat.id}">
+      <div class="wm-section-header" onclick="shopToggleSection('${cat.id}')">
+        <span class="wm-section-icon">${cat.icon}</span>
+        <span class="wm-section-title">${cat.title}</span>
+        <span class="wm-section-count">${catDone}/${catItems.length}</span>
+        <span class="wm-section-chevron">▾</span>
+      </div>
+      <div class="wm-items">`;
+
+    catItems.forEach(item => {
+      const isChecked = shopChecked.has(item.id);
+      const isEditingThis = shopEditingItem === item.id;
+      const pColor = prioColor[item.priority] || 'var(--muted)';
+      const moveLabel = isNeed ? '🚫' : '✅';
+      const moveTitle = isNeed ? 'Mover a No necesito' : 'Mover a A comprar';
+
+      if (isEditingThis) {
+        html += `<div class="wm-item wm-item-editing" onclick="event.stopPropagation()">
+          <div class="wm-edit-form">
+            <input class="wm-edit-input" id="shop-edit-name" placeholder="Qué querés comprar" value="${escapeHtml(item.name)}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+              <input class="wm-edit-input" id="shop-edit-size" placeholder="Talle (M, 42, 32x30…)" value="${escapeHtml(item.size||'')}">
+              <input class="wm-edit-input" id="shop-edit-store" placeholder="Tienda sugerida" value="${escapeHtml(item.store||'')}">
+            </div>
+            <select class="wm-edit-input" id="shop-edit-prio" style="margin-bottom:6px">
+              <option value="alta"${item.priority==='alta'?' selected':''}>🔴 Alta prioridad</option>
+              <option value="media"${item.priority==='media'?' selected':''}>🟡 Media prioridad</option>
+              <option value="baja"${item.priority==='baja'?' selected':''}>🟢 Baja prioridad</option>
+            </select>
+            <div class="wm-edit-actions">
+              <button class="mbtn" onclick="shopCancelEdit()">Cancelar</button>
+              <button class="mbtn msave" onclick="shopSaveEdit('${item.id}')">Guardar</button>
+            </div>
+          </div>
+        </div>`;
+      } else {
+        html += `<div class="wm-item${isChecked?' checked':''}" onclick="shopToggle('${item.id}',event)">
+          <div class="wm-check">${isChecked?'✓':''}</div>
+          <div class="wm-item-body">
+            <div class="wm-item-name">${escapeHtml(item.name)}</div>
+            <div class="wm-item-detail">${item.size ? 'Talle: '+escapeHtml(item.size) : ''} ${item.store ? '· '+escapeHtml(item.store) : ''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span style="width:8px;height:8px;border-radius:50%;background:${pColor};display:inline-block;flex-shrink:0" title="Prioridad ${item.priority}"></span>
+            <button class="wm-icon-btn" onclick="shopMoveItem('${item.id}',event)" title="${moveTitle}" aria-label="${moveTitle}">${moveLabel}</button>
+            <button class="wm-icon-btn" onclick="shopStartEdit('${item.id}',event)" title="Editar" aria-label="Editar ${escapeHtml(item.name)}">✏️</button>
+            <button class="wm-icon-btn wm-icon-del" onclick="shopDeleteItem('${item.id}',event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(item.name)}">✕</button>
+          </div>
+        </div>`;
+      }
+    });
+
+    html += `</div></div>`;
+  });
+
+  if (filtered.length === 0) {
+    html += `<div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
+      ${isNeed ? 'No hay prendas en la lista. Agregá una con el botón de abajo.' : 'Nada descartado todavía. Usá el 🚫 para mover ítems acá, o agregá uno directamente.'}
+    </div>`;
+  }
+
+  html += `<div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
+    <button class="wm-reset-btn" onclick="shopOpenAddModal('${isNeed ? 'need' : 'noneed'}')">+ Agregar prenda</button>
+    <button class="wm-reset-btn" onclick="shopReset()">↺ Reiniciar checks</button>
+  </div>`;
+
+  return html;
+}
+
+function shopToggleSection(catId) {
+  if (shopOpenSections.has(catId)) shopOpenSections.delete(catId);
+  else shopOpenSections.add(catId);
+  renderOutlets();
+}
+function shopMoveItem(id, e) {
+  e && e.stopPropagation();
+  const item = shopGetItem(id);
+  if (!item) return;
+  item.needIt = item.needIt === false ? true : false;
+  shopSave();
+  showMToast(item.needIt ? 'Movido a A comprar ✓' : 'Movido a No necesito ✓');
+  renderOutlets();
+}
+function shopToggle(id, e) {
+  e && e.stopPropagation();
+  if (shopChecked.has(id)) shopChecked.delete(id);
+  else shopChecked.add(id);
+  shopSave();
+  renderOutlets();
+}
+function shopStartEdit(id, e) {
+  e && e.stopPropagation();
+  shopEditingItem = id;
+  const item = shopGetItem(id);
+  if (item) shopOpenSections.add(item.catId);
+  renderOutlets();
+}
+function shopCancelEdit() { shopEditingItem = null; renderOutlets(); }
+function shopSaveEdit(id) {
+  const item = shopGetItem(id);
+  if (!item) return;
+  const name = document.getElementById('shop-edit-name').value.trim();
+  if (!name) return;
+  item.name = name;
+  item.size = document.getElementById('shop-edit-size').value.trim();
+  item.store = document.getElementById('shop-edit-store').value.trim();
+  item.priority = document.getElementById('shop-edit-prio').value;
+  shopEditingItem = null;
+  shopSave();
+  renderOutlets();
+  showMToast('Guardado ✓');
+}
+async function shopDeleteItem(id, e) {
+  e && e.stopPropagation();
+  const ok = await showConfirm('¿Eliminar esta prenda de la lista?', '¿Eliminar ítem?', 'Eliminar');
+  if (!ok) return;
+  shopItems = shopItems.filter(i => i.id !== id);
+  shopChecked.delete(id);
+  shopSave();
+  renderOutlets();
+}
+async function shopReset() {
+  const ok = await showConfirm('Se van a desmarcar todas las prendas compradas.', '¿Reiniciar checks?', 'Reiniciar', true);
+  if (!ok) return;
+  shopChecked.clear();
+  shopSave();
+  renderOutlets();
+}
+function shopOpenAddModal(tab) {
+  window._shopAddTab = tab || 'need';
+  document.getElementById('shopAddModal').classList.add('open');
+  setTimeout(() => document.getElementById('shop-add-name')?.focus(), 50);
+}
+function shopCloseAddModal() {
+  document.getElementById('shopAddModal').classList.remove('open');
+  ['shop-add-name','shop-add-size','shop-add-store'].forEach(id => {
+    const el = document.getElementById(id); if(el) { el.value=''; el.classList.remove('error'); }
+  });
+  const err = document.getElementById('shop-add-name-err');
+  if (err) err.classList.remove('show');
+}
+function shopAddItem() {
+  const nameEl = document.getElementById('shop-add-name');
+  const name = nameEl.value.trim();
+  const catId = document.getElementById('shop-add-cat').value;
+  const size = document.getElementById('shop-add-size').value.trim();
+  const store = document.getElementById('shop-add-store').value.trim();
+  const priority = document.getElementById('shop-add-prio').value;
+  if (!name) {
+    nameEl.classList.add('error');
+    const err = document.getElementById('shop-add-name-err');
+    if (err) err.classList.add('show');
+    nameEl.focus();
+    return;
+  }
+  const needIt = (window._shopAddTab || 'need') === 'need';
+  const newItem = { id:'shop-'+Date.now(), catId, name, size, store, priority, needIt };
+  shopItems.push(newItem);
+  shopOpenSections.add(catId);
+  shopSave();
+  renderOutlets();
+  shopCloseAddModal();
+  showMToast('Prenda agregada ✓');
+}
+
+// ─── PARQUES ───────────────────────────────────────────────
+const PARQUES_KEY = 'parkTracker_v2';
+let parquesState = {};
+
+function parquesLoad() {
+  const d = syncedLoad(PARQUES_KEY, window._parquesFromFb);
+  if (d) parquesState = d;
+}
+
+function parquesSave() {
+  syncedSave(PARQUES_KEY, parquesState, 'parques', { state: parquesState });
+}
+
+function pkKey(parkId, zoneIdx, attrIdx) { return `${parkId}_${zoneIdx}_${attrIdx}`; }
+function pkDone(parkId, zoneIdx, attrIdx) { return !!parquesState[pkKey(parkId, zoneIdx, attrIdx)]; }
+
+function toggleAttraction(parkId, zoneIdx, attrIdx) {
+  const k = pkKey(parkId, zoneIdx, attrIdx);
+  parquesState[k] = !parquesState[k];
+  parquesSave();
+  // Actualizar pin en mapa sin re-renderizar todo
+  const mapInst = _parkMaps[parkId];
+  if (mapInst) {
+    const park = PARKS_DATA.find(p => p.id === parkId);
+    const attr = park?.zones[zoneIdx]?.attractions[attrIdx];
+    const globalIdx = park ? (() => { let idx=0; for(let zi=0;zi<zoneIdx;zi++) idx+=park.zones[zi].attractions.length; return idx+attrIdx; })() : -1;
+    const markerObj = mapInst._markers && mapInst._markers[globalIdx];
+    if (markerObj && attr) {
+      const isDone = !!parquesState[k];
+      const color = PARK_COLORS[parkId] || '#8b5cf6';
+      markerObj.setIcon(makeParkPin(color, isDone, attr.name));
+    }
+  }
+  renderParques();
+}
+
+function pkCountPark(park) {
+  let done = 0, total = 0;
+  park.zones.forEach((z, zi) => z.attractions.forEach((_, ai) => { total++; if (pkDone(park.id, zi, ai)) done++; }));
+  return { done, total };
+}
+
+function pkCountAll() {
+  let done = 0, total = 0;
+  PARKS_DATA.forEach(p => { const c = pkCountPark(p); done += c.done; total += c.total; });
+  return { done, total };
+}
+
+function updateParquesCounter() {
+  const { done, total } = pkCountAll();
+  document.getElementById('global-counter').textContent = done + ' / ' + total;
+}
+
+let pkFilter = 'all';
+let pkOpenCards = new Set(['mk','epcot','hs','ioa','usf','epic']);
+
+const PARKS_DATA = [
+  {
+    id: 'mk', name: 'Magic Kingdom', emoji: '🏰', label: 'Walt Disney World', cls: 'pk-mk',
+    zones: [
+      { name: 'Main Street, U.S.A.', attractions: [
+        { name: 'Walt Disney World Railroad', lat: 28.4193, lng: -81.5808 },
+        { name: 'Town Square Theater (Meet Mickey)', lat: 28.4183, lng: -81.5808 },
+      ]},
+      { name: 'Adventureland', attractions: [
+        { name: 'Swiss Family Treehouse', lat: 28.4192, lng: -81.5829 },
+        { name: 'The Magic Carpets of Aladdin', lat: 28.4195, lng: -81.5832 },
+        { name: 'Jungle Cruise', lat: 28.4198, lng: -81.5838 },
+        { name: "Walt Disney's Enchanted Tiki Room", lat: 28.4193, lng: -81.5842 },
+        { name: 'Pirates of the Caribbean', lat: 28.4199, lng: -81.5844 },
+      ]},
+      { name: 'Frontierland', attractions: [
+        { name: "Tiana's Bayou Adventure", height: '40"/ 102 cm', lat: 28.4206, lng: -81.5848 },
+        { name: 'Big Thunder Mountain Railroad (temp. cerrada)', height: '40"/ 102 cm', lat: 28.4212, lng: -81.5852 },
+        { name: 'Country Bear Musical Jamboree', lat: 28.4202, lng: -81.5845 },
+      ]},
+      { name: 'Liberty Square', attractions: [
+        { name: 'The Hall of Presidents', lat: 28.4215, lng: -81.5832 },
+        { name: 'Haunted Mansion', lat: 28.4220, lng: -81.5827 },
+      ]},
+      { name: 'Fantasyland', attractions: [
+        { name: '"it\'s a small world"', lat: 28.4228, lng: -81.5820 },
+        { name: "Peter Pan's Flight", lat: 28.4224, lng: -81.5815 },
+        { name: 'Prince Charming Regal Carrousel', lat: 28.4220, lng: -81.5812 },
+        { name: "Mickey's PhilharMagic", lat: 28.4218, lng: -81.5808 },
+        { name: 'Princess Fairytale Hall', lat: 28.4222, lng: -81.5806 },
+        { name: 'The Many Adventures of Winnie the Pooh', lat: 28.4225, lng: -81.5803 },
+        { name: 'Seven Dwarfs Mine Train', height: '38"/ 97 cm', lat: 28.4228, lng: -81.5800 },
+        { name: 'Enchanted Tales with Belle', lat: 28.4231, lng: -81.5797 },
+        { name: 'Under the Sea – Journey of The Little Mermaid', lat: 28.4234, lng: -81.5794 },
+        { name: 'Meet Ariel at Her Grotto', lat: 28.4235, lng: -81.5792 },
+        { name: 'The Barnstormer', height: '35"/ 89 cm', lat: 28.4237, lng: -81.5798 },
+        { name: 'Dumbo the Flying Elephant', lat: 28.4239, lng: -81.5803 },
+        { name: 'Mad Tea Party', lat: 28.4236, lng: -81.5808 },
+        { name: 'Meet Mirabel at Fairytale Garden', lat: 28.4233, lng: -81.5812 },
+      ]},
+      { name: 'Tomorrowland', attractions: [
+        { name: 'TRON Lightcycle / Run', height: '48"/ 122 cm', lat: 28.4232, lng: -81.5778 },
+        { name: 'Tomorrowland Speedway', height: '32"/ 81 cm (solo) / 54"/ 137 cm (conducir)', lat: 28.4236, lng: -81.5782 },
+        { name: 'Space Mountain', height: '44"/ 112 cm', lat: 28.4230, lng: -81.5790 },
+        { name: 'Astro Orbiter', lat: 28.4218, lng: -81.5798 },
+        { name: 'Tomorrowland Transit Authority PeopleMover', lat: 28.4222, lng: -81.5795 },
+        { name: "Walt Disney's Carousel of Progress", lat: 28.4225, lng: -81.5785 },
+        { name: "Buzz Lightyear's Space Ranger Spin", lat: 28.4215, lng: -81.5793 },
+        { name: 'Monsters, Inc. Laugh Floor', lat: 28.4213, lng: -81.5789 },
+        { name: "Pete's Silly Sideshow", lat: 28.4240, lng: -81.5795 },
+      ]},
+    ]
+  },
+  {
+    id: 'epcot', name: 'EPCOT', emoji: '🌍', label: 'Walt Disney World', cls: 'pk-epcot',
+    zones: [
+      { name: 'World Celebration', attractions: [
+        { name: 'Spaceship Earth', lat: 28.3747, lng: -81.5494 },
+        { name: 'Meet Mickey & Friends', lat: 28.3742, lng: -81.5490 },
+        { name: 'Disney & Pixar Short Film Festival', lat: 28.3738, lng: -81.5498 },
+        { name: 'Journey Into Imagination With Figment', lat: 28.3730, lng: -81.5510 },
+      ]},
+      { name: 'World Discovery', attractions: [
+        { name: 'Guardians of the Galaxy: Cosmic Rewind', height: '42"/ 107 cm', lat: 28.3752, lng: -81.5480 },
+        { name: 'Mission: SPACE – Green Mission', height: '40"/ 102 cm', lat: 28.3748, lng: -81.5476 },
+        { name: 'Mission: SPACE – Orange Mission', height: '44"/ 112 cm', lat: 28.3748, lng: -81.5474 },
+        { name: 'REIMAGINED! Test Track', height: '40"/ 102 cm', lat: 28.3753, lng: -81.5472 },
+      ]},
+      { name: 'World Nature', attractions: [
+        { name: 'Journey of Water, Inspired by Moana', lat: 28.3740, lng: -81.5470 },
+        { name: 'Awesome Planet', lat: 28.3736, lng: -81.5508 },
+        { name: "Soarin'", height: '40"/ 102 cm', lat: 28.3730, lng: -81.5519 },
+        { name: 'Living with the Land', lat: 28.3726, lng: -81.5518 },
+        { name: 'The Seas with Nemo & Friends', lat: 28.3722, lng: -81.5512 },
+        { name: 'Turtle Talk with Crush', lat: 28.3720, lng: -81.5510 },
+        { name: 'SeaBase Aquarium', lat: 28.3719, lng: -81.5508 },
+      ]},
+      { name: 'World Showcase', attractions: [
+        { name: 'Gran Fiesta Tour Starring The Three Caballeros (México)', lat: 28.3695, lng: -81.5520 },
+        { name: 'Meet Anna and Elsa at Royal Sommerhus (Noruega)', lat: 28.3692, lng: -81.5510 },
+        { name: 'Frozen Ever After (Noruega)', lat: 28.3690, lng: -81.5508 },
+        { name: 'Reflections of China', lat: 28.3686, lng: -81.5490 },
+        { name: 'The American Adventure', lat: 28.3682, lng: -81.5493 },
+        { name: 'Palais du Cinéma (Francia)', lat: 28.3676, lng: -81.5478 },
+        { name: 'Beauty and the Beast Sing-Along (Francia)', lat: 28.3675, lng: -81.5476 },
+        { name: 'Impressions de France (Francia)', lat: 28.3674, lng: -81.5474 },
+        { name: "Remy's Ratatouille Adventure (Francia)", lat: 28.3673, lng: -81.5472 },
+        { name: 'Canada Far and Wide in Circle-Vision 360', lat: 28.3698, lng: -81.5530 },
+      ]},
+    ]
+  },
+  {
+    id: 'hs', name: 'Hollywood Studios', emoji: '🎬', label: 'Walt Disney World', cls: 'pk-hs',
+    zones: [
+      { name: 'Hollywood Boulevard', attractions: [
+        { name: "Mickey & Minnie's Runaway Railway", lat: 28.3579, lng: -81.5601 },
+      ]},
+      { name: 'Echo Lake', attractions: [
+        { name: "Indiana Jones™ Epic Stunt Spectacular!", lat: 28.3571, lng: -81.5612 },
+        { name: 'Star Tours – The Adventures Continue', height: '40"/ 102 cm', lat: 28.3568, lng: -81.5617 },
+        { name: 'Vacation Fun (Animated Short)', lat: 28.3565, lng: -81.5610 },
+        { name: 'For the First Time in Forever: A "Frozen" Sing-Along Celebration', lat: 28.3563, lng: -81.5608 },
+      ]},
+      { name: 'Commissary Lane', attractions: [
+        { name: 'Meet Mickey and Minnie at Red Carpet Dreams', lat: 28.3572, lng: -81.5598 },
+      ]},
+      { name: "Star Wars: Galaxy's Edge", attractions: [
+        { name: 'Star Wars: Rise of the Resistance', height: '40"/ 102 cm', lat: 28.3556, lng: -81.5635 },
+        { name: "Millennium Falcon: Smugglers Run", height: '38"/ 97 cm', lat: 28.3561, lng: -81.5630 },
+      ]},
+      { name: 'Toy Story Land', attractions: [
+        { name: 'Alien Swirling Saucers', height: '32"/ 81 cm', lat: 28.3551, lng: -81.5605 },
+        { name: 'Slinky Dog Dash', height: '38"/ 97 cm', lat: 28.3548, lng: -81.5610 },
+        { name: 'Toy Story Mania!', lat: 28.3554, lng: -81.5598 },
+      ]},
+      { name: 'Animation Courtyard', attractions: [
+        { name: 'Walt Disney Presents', lat: 28.3576, lng: -81.5624 },
+        { name: 'The Little Mermaid – A Musical Adventure', lat: 28.3578, lng: -81.5627 },
+      ]},
+      { name: 'Sunset Boulevard', attractions: [
+        { name: 'Disney Villains: Unfairly Ever After', lat: 28.3560, lng: -81.5589 },
+        { name: "Rock 'n' Roller Coaster® Starring Aerosmith", height: '48"/ 122 cm', lat: 28.3557, lng: -81.5585 },
+        { name: 'The Twilight Zone Tower of Terror™', height: '40"/ 102 cm', lat: 28.3554, lng: -81.5581 },
+        { name: 'Fantasmic!', lat: 28.3548, lng: -81.5576 },
+        { name: 'Beauty and the Beast – Live on Stage', lat: 28.3562, lng: -81.5593 },
+      ]},
+      { name: 'Pixar Plaza', attractions: [
+        { name: 'Meet Edna Mode at the Edna Mode Experience', lat: 28.3567, lng: -81.5595 },
+      ]},
+    ]
+  },
+  {
+    id: 'ioa', name: 'Islands of Adventure', emoji: '🦖', label: 'Universal Orlando', cls: 'pk-ioa',
+    zones: [
+      { name: 'Marvel Super Hero Island', attractions: [
+        { name: 'The Incredible Hulk Coaster®', height: '54"/ 138 cm', lat: 28.4720, lng: -81.4690 },
+        { name: 'Storm Force Accelatron®', lat: 28.4718, lng: -81.4688 },
+        { name: "Doctor Doom's Fearfall®", height: '52"/ 133 cm', lat: 28.4715, lng: -81.4692 },
+        { name: 'The Amazing Adventures of Spider-Man®', height: '40"/ 102 cm', lat: 28.4713, lng: -81.4695 },
+        { name: 'Meet the Marvel Super Heroes', lat: 28.4712, lng: -81.4698 },
+      ]},
+      { name: 'Toon Lagoon', attractions: [
+        { name: 'Classic Comic Strip Characters', lat: 28.4710, lng: -81.4710 },
+        { name: 'Me Ship, The Olive®', lat: 28.4707, lng: -81.4715 },
+        { name: "Popeye & Bluto's Bilge-Rat Barges®", height: '42"/ 107 cm', lat: 28.4705, lng: -81.4718 },
+        { name: "Dudley Do-Right's Ripsaw Falls®", height: '44"/ 112 cm', lat: 28.4703, lng: -81.4720 },
+      ]},
+      { name: 'Skull Island: Reign of Kong', attractions: [
+        { name: 'Skull Island: Reign of Kong', height: '36"/ 92 cm', lat: 28.4700, lng: -81.4728 },
+      ]},
+      { name: 'Jurassic Park', attractions: [
+        { name: 'Camp Jurassic', lat: 28.4698, lng: -81.4738 },
+        { name: 'Pteranodon Flyers', height: '36"–56"/ 92–143 cm', lat: 28.4695, lng: -81.4742 },
+        { name: 'Jurassic Park River Adventure', height: '42"/ 107 cm', lat: 28.4692, lng: -81.4745 },
+        { name: 'Raptor Encounter', lat: 28.4690, lng: -81.4748 },
+        { name: 'Jurassic Park Discovery Center', lat: 28.4688, lng: -81.4751 },
+        { name: 'Jurassic World VelociCoaster', height: '51"/ 130 cm', lat: 28.4685, lng: -81.4755 },
+      ]},
+      { name: 'The Wizarding World of Harry Potter – Hogsmeade', attractions: [
+        { name: 'Harry Potter and the Forbidden Journey™', height: '48"/ 122 cm', lat: 28.4682, lng: -81.4762 },
+        { name: 'Flight of the Hippogriff™', height: '36"/ 92 cm', lat: 28.4680, lng: -81.4765 },
+        { name: 'Frog Choir / Triwizard Spirit Rally', lat: 28.4678, lng: -81.4768 },
+        { name: 'Ollivanders™', lat: 28.4676, lng: -81.4770 },
+        { name: "Hagrid's Magical Creatures Motorbike Adventure™", height: '48"/ 122 cm', lat: 28.4674, lng: -81.4773 },
+        { name: 'Hogwarts™ Express – Hogsmeade™ Station', lat: 28.4672, lng: -81.4776 },
+      ]},
+      { name: 'The Lost Continent', attractions: [
+        { name: 'The Mystic Fountain', lat: 28.4670, lng: -81.4782 },
+      ]},
+      { name: 'Seuss Landing', attractions: [
+        { name: 'The High in the Sky Seuss Trolley Train Ride!™', height: '36"/ 92 cm', lat: 28.4668, lng: -81.4790 },
+        { name: 'Caro-Seuss-el™', lat: 28.4666, lng: -81.4792 },
+        { name: "Oh! The Stories You'll Hear!™", lat: 28.4664, lng: -81.4795 },
+        { name: 'Dr. Seuss Character Zone', lat: 28.4662, lng: -81.4798 },
+        { name: 'One Fish, Two Fish, Red Fish, Blue Fish™', lat: 28.4660, lng: -81.4800 },
+        { name: 'The Cat in the Hat™', height: '36"/ 92 cm', lat: 28.4658, lng: -81.4802 },
+        { name: "If I Ran The Zoo™", lat: 28.4656, lng: -81.4805 },
+      ]},
+    ]
+  },
+  {
+    id: 'usf', name: 'Universal Studios Florida', emoji: '🎭', label: 'Universal Orlando', cls: 'pk-usf',
+    zones: [
+      { name: 'Minion Land', attractions: [
+        { name: "Illumination's Villain-Con Minion Blast", lat: 28.4754, lng: -81.4668 },
+        { name: 'Despicable Me Minion Mayhem', height: '40"/ 102 cm', lat: 28.4758, lng: -81.4665 },
+        { name: 'Illumination Theater™', lat: 28.4756, lng: -81.4662 },
+      ]},
+      { name: 'New York', attractions: [
+        { name: 'Hollywood Rip Ride Rockit', height: '51"–79"/ 130–201 cm', lat: 28.4762, lng: -81.4655 },
+        { name: 'Meet The TRANSFORMERS™', lat: 28.4765, lng: -81.4652 },
+        { name: 'TRANSFORMERS™: The Ride-3D', height: '40"/ 102 cm', lat: 28.4768, lng: -81.4650 },
+        { name: 'Race Through New York Starring Jimmy Fallon', height: '40"/ 102 cm', lat: 28.4770, lng: -81.4648 },
+        { name: 'Marilyn & the Diamond Bellas', lat: 28.4772, lng: -81.4646 },
+        { name: 'Revenge of the Mummy', height: '48"/ 122 cm', lat: 28.4774, lng: -81.4644 },
+        { name: 'The Blues Brothers® Show', lat: 28.4776, lng: -81.4642 },
+        { name: 'Sing it!', lat: 28.4778, lng: -81.4640 },
+        { name: '¡Vamos! – Báilalo', lat: 28.4780, lng: -81.4638 },
+      ]},
+      { name: 'San Francisco', attractions: [
+        { name: 'Beat Builders', lat: 28.4784, lng: -81.4635 },
+        { name: 'Fast & Furious – Supercharged', height: '40"/ 102 cm', lat: 28.4786, lng: -81.4632 },
+      ]},
+      { name: 'The Wizarding World of Harry Potter – Diagon Alley', attractions: [
+        { name: "Hogwarts™ Express – King's Cross Station", lat: 28.4792, lng: -81.4625 },
+        { name: 'Knight Bus™', lat: 28.4794, lng: -81.4622 },
+        { name: 'Harry Potter and the Escape from Gringotts™', height: '42"/ 107 cm', lat: 28.4796, lng: -81.4618 },
+        { name: 'Ollivanders™', lat: 28.4798, lng: -81.4615 },
+        { name: 'Gringotts™ Money Exchange', lat: 28.4800, lng: -81.4612 },
+        { name: 'The Tales of Beedle the Bard™ / Celestina Warbeck and the Banshees', lat: 28.4802, lng: -81.4609 },
+      ]},
+      { name: 'World Expo', attractions: [
+        { name: 'MEN IN BLACK™ Alien Attack™', height: '42"/ 107 cm', lat: 28.4806, lng: -81.4605 },
+      ]},
+      { name: 'Springfield, U.S.A.: Home of the Simpsons', attractions: [
+        { name: 'The Simpsons Ride™', height: '40"/ 102 cm', lat: 28.4810, lng: -81.4600 },
+        { name: "Kang & Kodos' Twirl 'n' Hurl", lat: 28.4812, lng: -81.4598 },
+      ]},
+      { name: "Woody Woodpecker's KidZone", attractions: [
+        { name: 'Animal Actors on Location!', lat: 28.4816, lng: -81.4594 },
+        { name: 'E.T. Adventure', height: '34"/ 87 cm', lat: 28.4818, lng: -81.4592 },
+        { name: 'Meet SpongeBob SquarePants and Friends', lat: 28.4820, lng: -81.4590 },
+      ]},
+      { name: 'Hollywood', attractions: [
+        { name: 'NBC Media Center', lat: 28.4824, lng: -81.4586 },
+        { name: 'Drive In and Dance', lat: 28.4826, lng: -81.4584 },
+        { name: 'Character Party Zone', lat: 28.4828, lng: -81.4582 },
+        { name: "Universal Orlando's Horror Make-Up Show", lat: 28.4830, lng: -81.4580 },
+        { name: 'Hollywood Character Zone', lat: 28.4832, lng: -81.4578 },
+        { name: 'The Bourne Stuntacular', lat: 28.4834, lng: -81.4576 },
+      ]},
+    ]
+  },
+  {
+    id: 'epic', name: 'Epic Universe', emoji: '✨', label: 'Universal Orlando', cls: 'pk-epic',
+    zones: [
+      { name: 'Celestial Park', attractions: [
+        { name: 'Stardust Racers', height: '48"/ 122 cm', lat: 28.4610, lng: -81.4625 },
+        { name: 'Constellation Carousel', lat: 28.4608, lng: -81.4622 },
+        { name: 'Astronomica', lat: 28.4606, lng: -81.4620 },
+      ]},
+      { name: 'Super Nintendo World™', attractions: [
+        { name: "Mario Kart™: Bowser's Challenge", height: '40"/ 102 cm', lat: 28.4598, lng: -81.4635 },
+        { name: 'Mine-Cart Madness™', height: '40"/ 102 cm', lat: 28.4596, lng: -81.4638 },
+        { name: "Yoshi's Adventure™", height: '34"/ 87 cm', lat: 28.4594, lng: -81.4641 },
+        { name: 'Mario & Luigi Meet & Greet', lat: 28.4592, lng: -81.4644 },
+        { name: 'Princess Peach Meet & Greet', lat: 28.4590, lng: -81.4647 },
+        { name: 'Toad Meet & Greet', lat: 28.4588, lng: -81.4650 },
+        { name: 'Donkey Kong Meet & Greet', lat: 28.4586, lng: -81.4653 },
+      ]},
+      { name: 'Dark Universe', attractions: [
+        { name: 'Monsters Unchained: The Frankenstein Experiment', height: '48"/ 122 cm', lat: 28.4580, lng: -81.4615 },
+        { name: 'Curse of the Werewolf', height: '40"/ 102 cm', lat: 28.4578, lng: -81.4612 },
+        { name: 'Dark Universe Character Meet & Greet', lat: 28.4576, lng: -81.4609 },
+        { name: 'Darkmoor Monster Makeup Experience', lat: 28.4574, lng: -81.4606 },
+      ]},
+      { name: 'The Wizarding World of Harry Potter – Ministry of Magic', attractions: [
+        { name: 'Harry Potter and the Battle at the Ministry™', height: '40"/ 102 cm', lat: 28.4568, lng: -81.4620 },
+        { name: 'Le Cirque Arcanus™', lat: 28.4566, lng: -81.4623 },
+        { name: 'Cosme Acajor Baguettes Magique™', lat: 28.4564, lng: -81.4626 },
+      ]},
+      { name: 'How to Train Your Dragon – Isle of Berk', attractions: [
+        { name: "Hiccup's Wing Gliders", height: '40"/ 102 cm', lat: 28.4558, lng: -81.4635 },
+        { name: "Dragon Racer's Rally", height: '48"/ 122 cm', lat: 28.4556, lng: -81.4638 },
+        { name: 'Fyre Drill', lat: 28.4554, lng: -81.4641 },
+        { name: 'The Untrainable Dragon', lat: 28.4552, lng: -81.4644 },
+        { name: 'Viking Training Camp', lat: 28.4550, lng: -81.4647 },
+        { name: 'Meet Toothless and Friends', lat: 28.4548, lng: -81.4650 },
+      ]},
+    ]
+  },
+];
+
+function pkToggleCard(id) {
+  const wasOpen = pkOpenCards.has(id);
+  if (wasOpen) {
+    pkOpenCards.delete(id);
+    // Destruir mapa al colapsar para evitar grises
+    if (_parkMaps[id]) {
+      _parkMaps[id].remove();
+      delete _parkMaps[id];
+    }
+  } else {
+    pkOpenCards.add(id);
+  }
+  renderParques();
+  // Si se abre, inicializar mapa después del render
+  if (!wasOpen) {
+    setTimeout(() => initParkMap(id), 80);
+  }
+}
+
+function pkSetFilter(id) {
+  pkFilter = id;
+  renderParques();
+}
+
+async function pkResetAll() {
+  const ok = await showConfirm('Se va a borrar todo el progreso de atracciones. ¿Confirmás?', '¿Reiniciar Parques?', 'Reiniciar', true);
+  if (!ok) return;
+  parquesState = {};
+  parquesSave();
+  renderParques();
+  updateParquesCounter();
+}
+
+const pkFilterMeta = [
+  { id: 'all',  label: '🎡 Todos' },
+  { id: 'mk',   label: '🏰 Magic Kingdom' },
+  { id: 'epcot',label: '🌍 EPCOT' },
+  { id: 'hs',   label: '🎬 Hollywood Studios' },
+  { id: 'ioa',  label: '🦖 Islands of Adventure' },
+  { id: 'usf',  label: '🎭 Universal Studios' },
+  { id: 'epic', label: '✨ Epic Universe' },
+];
+
+// ─── PARK MAPS ─────────────────────────────────────────────
+const PARK_COLORS = {
+  mk:   '#c084fc',
+  epcot:'#4dd0c4',
+  hs:   '#ff7675',
+  ioa:  '#69f0ae',
+  usf:  '#64b5f6',
+  epic: '#ce93d8',
+};
+
+let _parkMaps = {};
+let _pkMapOpen = {};
+
+function makeParkPin(color, isDone, label) {
+  const bg   = isDone ? 'transparent' : color;
+  const border = isDone ? color : 'rgba(255,255,255,0.25)';
+  const textColor = isDone ? color : '#fff';
+  const check = isDone ? '✓' : '';
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:26px;height:26px;border-radius:50%;
+      background:${bg};
+      color:${textColor};
+      display:flex;align-items:center;justify-content:center;
+      font-family:'DM Sans',sans-serif;font-weight:800;font-size:13px;
+      border:2px solid ${border};
+      box-shadow:0 2px 8px rgba(0,0,0,0.5);
+      opacity:${isDone ? '0.7' : '1'};
+      transition:all .2s;
+    ">${check}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -16]
+  });
+}
+
+function pkToggleParkMap(parkId) {
+  const container = document.getElementById(`pkmap-container-${parkId}`);
+  const chev = document.getElementById(`pkmap-chev-${parkId}`);
+  const wrap = document.getElementById(`pkmap-wrap-${parkId}`);
+  if (!container) return;
+
+  const isOpen = container.style.display !== 'none';
+  if (isOpen) {
+    container.style.display = 'none';
+    if (chev) chev.style.transform = '';
+    if (wrap) wrap.classList.remove('open');
+    if (_parkMaps[parkId]) {
+      _parkMaps[parkId].remove();
+      delete _parkMaps[parkId];
+    }
+  } else {
+    container.style.display = 'block';
+    if (chev) chev.style.transform = 'rotate(180deg)';
+    if (wrap) wrap.classList.add('open');
+    setTimeout(() => initParkMap(parkId), 80);
+  }
+}
+
+function initParkMap(parkId) {
+  const container = document.getElementById(`pkmap-container-${parkId}`);
+  if (!container || container.style.display === 'none') return;
+
+  // Destruir instancia previa si existe
+  if (_parkMaps[parkId]) {
+    _parkMaps[parkId].remove();
+    delete _parkMaps[parkId];
+  }
+  container.innerHTML = '';
+
+  const park = PARKS_DATA.find(p => p.id === parkId);
+  if (!park) return;
+
+  const color = PARK_COLORS[parkId] || '#8b5cf6';
+  const map = L.map(container, { zoomControl: true, attributionControl: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  const bounds = [];
+  const markers = [];
+  let globalIdx = 0;
+
+  park.zones.forEach((zone, zi) => {
+    zone.attractions.forEach((attr, ai) => {
+      if (!attr.lat || !attr.lng) { globalIdx++; return; }
+      const isDone = pkDone(parkId, zi, ai);
+      const icon = makeParkPin(color, isDone, attr.name);
+
+      const heightHtml = attr.height
+        ? `<div style="font-size:10px;color:#8b5cf6;font-weight:600;margin-top:2px">↑ ${attr.height}</div>`
+        : '';
+      const doneHtml = isDone
+        ? `<div style="margin-top:5px;font-size:11px;color:#10b981">✓ Completada</div>`
+        : '';
+
+      const marker = L.marker([attr.lat, attr.lng], { icon })
+        .bindPopup(`
+          <div class="map-popup-name">${attr.name}</div>
+          <div class="map-popup-desc">${zone.name}</div>
+          ${heightHtml}
+          ${doneHtml}
+        `, { maxWidth: 200 })
+        .addTo(map);
+
+      markers[globalIdx] = marker;
+      bounds.push([attr.lat, attr.lng]);
+      globalIdx++;
+    });
+  });
+
+  if (bounds.length > 0) {
+    map.fitBounds(bounds, { padding: [28, 28] });
+  }
+
+  map._markers = markers;
+  _parkMaps[parkId] = map;
+  setTimeout(() => map && map.invalidateSize(), 150);
+}
+
+// Inicializar mapas de parques que están abiertos al renderizar
+function initOpenParkMaps() {
+  pkOpenCards.forEach(parkId => {
+    setTimeout(() => initParkMap(parkId), 120);
+  });
+}
+
+function renderParques() {
+  const panel = document.getElementById('panel-parques');
+  const { done: gDone, total: gTotal } = pkCountAll();
+  const gPct = gTotal > 0 ? Math.round(gDone / gTotal * 100) : 0;
+
+  let html = `<div class="parques-panel">
+    <div class="parques-global-bar">
+      <div class="parques-global-nums">
+        <div class="parques-global-count">${gDone}</div>
+        <div class="parques-global-lbl">de ${gTotal}</div>
+      </div>
+      <div class="parques-global-right">
+        <div class="parques-global-title">Atracciones completadas</div>
+        <div class="parques-prog-bg"><div class="parques-prog-fill" style="width:${gPct}%"></div></div>
+      </div>
+    </div>
+    <div class="parques-filter-bar">`;
+
+  pkFilterMeta.forEach(f => {
+    html += `<button class="parques-filter-btn${pkFilter===f.id?' active':''}" onclick="pkSetFilter('${f.id}')">${f.label}</button>`;
+  });
+  html += `</div>`;
+
+  PARKS_DATA.forEach(park => {
+    const visible = pkFilter === 'all' || pkFilter === park.id;
+    const { done, total } = pkCountPark(park);
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+    const isOpen = pkOpenCards.has(park.id);
+
+    html += `<div class="park-card ${park.cls}${!visible ? ' pk-hidden' : ''}${isOpen ? ' open' : ''}" id="pkcard-${park.id}">
+      <div class="park-card-header" onclick="pkToggleCard('${park.id}')">
+        <span class="park-card-emoji">${park.emoji}</span>
+        <div class="park-card-info">
+          <div class="park-card-name">${park.name}</div>
+          <div class="park-card-label">${park.label}</div>
+        </div>
+        <div class="park-card-right">
+          <span class="park-card-count">${done}/${total}</span>
+          <div class="park-mini-bar-bg"><div class="park-mini-bar-fill" style="width:${pct}%"></div></div>
+          <span class="park-card-chevron">▾</span>
+        </div>
+      </div>
+      <div class="park-card-body">`;
+
+    park.zones.forEach((zone, zi) => {
+      html += `<div class="park-zone-title">${zone.name}</div>`;
+      zone.attractions.forEach((attr, ai) => {
+        const done = pkDone(park.id, zi, ai);
+        html += `<div class="park-attr-item${done ? ' pk-done' : ''}" onclick="toggleAttraction('${park.id}',${zi},${ai})">
+          <div class="park-attr-check">${done ? '✓' : ''}</div>
+          <div class="park-attr-body">
+            <div class="park-attr-name">${attr.name}</div>
+            ${attr.height ? `<div class="park-attr-height">↑ ${attr.height}</div>` : ''}
+          </div>
+        </div>`;
+      });
+    });
+
+    // Mapa colapsable por parque
+    const parkAttrsWithCoords = park.zones.flatMap(z => z.attractions).filter(a => a.lat && a.lng);
+    if (parkAttrsWithCoords.length > 0) {
+      html += `
+        <div class="day-map-wrap" id="pkmap-wrap-${park.id}" style="margin:0;border-radius:0 0 var(--radius) var(--radius);border-top:1px solid var(--border);border-left:none;border-right:none;border-bottom:none;">
+          <div class="day-map-header" onclick="pkToggleParkMap('${park.id}')">
+            <div class="day-map-title">🗺️ Mapa · ${parkAttrsWithCoords.length} atracciones</div>
+            <span class="day-map-chevron" id="pkmap-chev-${park.id}">▾</span>
+          </div>
+          <div id="pkmap-container-${park.id}" class="day-map-container" style="display:none;height:280px;"></div>
+        </div>`;
+    }
+
+    html += `</div></div>`;
+  });
+
+  html += `<div class="parques-reset-row"><button class="wm-reset-btn" onclick="pkResetAll()">↺ Reiniciar todo</button></div>`;
+  html += `</div>`;
+  panel.innerHTML = html;
+  updateParquesCounter();
+  // Inicializar mapas para cards ya abiertas
+  setTimeout(() => {
+    pkOpenCards.forEach(parkId => {
+      // Solo si el container existe y está visible (card open)
+      const container = document.getElementById(`pkmap-container-${parkId}`);
+      if (container && container.style.display !== 'none' && !_parkMaps[parkId]) {
+        initParkMap(parkId);
+      }
+    });
+  }, 80);
+}
+

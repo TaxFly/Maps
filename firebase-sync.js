@@ -1,0 +1,164 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCQ-JeQ5sHqv5PC-Md_Qfif3ulXOfyFubc",
+  authDomain: "orlando-planning-5c1e1.firebaseapp.com",
+  projectId: "orlando-planning-5c1e1",
+  storageBucket: "orlando-planning-5c1e1.firebasestorage.app",
+  messagingSenderId: "658373278539",
+  appId: "1:658373278539:web:83f019075c8f47555dc6ce"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+async function fbSet(docId, data) {
+  try { await setDoc(doc(db, "orlando", docId), data, { merge: true }); }
+  catch(e) { devError("fbSet error", e); }
+}
+
+async function fbGet(docId) {
+  try {
+    const snap = await getDoc(doc(db, "orlando", docId));
+    return snap.exists() ? snap.data() : null;
+  } catch(e) { devError("fbGet error", e); return null; }
+}
+
+// Serialización estable (claves ordenadas) para comparar "lo que mandé"
+// contra "lo que volvió" sin falsos positivos por orden de propiedades.
+function stableStringify(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+}
+
+// ─── Aviso de posible conflicto entre dispositivos ───
+// No hay merge real de listas (ver nota en syncedSave): esto es un heurístico
+// para detectar el caso de riesgo, no una solución de fondo. Si llega un
+// cambio remoto para un docId dentro de los pocos segundos posteriores a que
+// YO escribí ese mismo docId, y el valor que llegó es distinto al que yo
+// mandé, es señal de que otro dispositivo editó casi al mismo tiempo y uno
+// de los dos cambios probablemente se perdió.
+const CONFLICT_WINDOW_MS = 6000;
+function fbListen(docId, callback) {
+  return onSnapshot(doc(db, "orlando", docId), snap => {
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const log = window._syncedWriteLog && window._syncedWriteLog[docId];
+    if (window._appInited && log && (Date.now() - log.at) < CONFLICT_WINDOW_MS) {
+      if (stableStringify(data) !== log.value) {
+        window.showMToast && window.showMToast('⚠️ Otro dispositivo editó esto casi al mismo tiempo — revisá que no se haya perdido nada');
+      }
+    }
+    callback(data);
+  });
+}
+
+window._fb = { fbSet, fbGet, fbListen, stableStringify };
+
+function showSyncOverlay(show) {
+  let el = document.getElementById('sync-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'sync-overlay';
+    el.style.cssText = 'position:fixed;inset:0;background:#0f172a;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;';
+    el.innerHTML = '<div style="font-family:DM Sans,sans-serif;font-size:18px;font-weight:800;color:#60a5fa;">Orlando Planning</div><div style="font-size:13px;color:#94a3b8;">Sincronizando...</div><div class="sync-spinner"></div>';
+    const style = document.createElement('style');
+    style.textContent = '.sync-spinner{width:28px;height:28px;border:3px solid #273549;border-top-color:#60a5fa;border-radius:50%;animation:spin .7s linear infinite;}@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(style);
+    document.body.appendChild(el);
+  }
+  el.style.display = show ? 'flex' : 'none';
+}
+
+async function startApp() {
+  showSyncOverlay(true);
+
+  const results = await Promise.allSettled([
+    fbGet('hotel'),
+    fbGet('days'),
+    fbGet('visited'),
+    fbGet('meals'),
+    fbGet('walmart'),
+    fbGet('wmChecked'),
+    fbGet('shopping'),
+    fbGet('parques'),
+  ]);
+
+  const val = (r) => r.status === 'fulfilled' ? r.value : null;
+  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, parquesDataFb] = results.map(val);
+
+  if (hotelData) window._hotelFromFb = hotelData;
+  if (daysData && daysData.days) window._daysFromFb = daysData.days;
+  if (visitedData && visitedData.visited) window._visitedFromFb = visitedData.visited;
+  if (mealDataFb && mealDataFb.meals) window._mealsFromFb = mealDataFb.meals;
+  if (wmDataFb && wmDataFb.data) window._wmDataFromFb = wmDataFb.data;
+  if (wmCheckedFb && wmCheckedFb.checked) window._wmCheckedFromFb = wmCheckedFb.checked;
+  if (shopDataFb) window._shopFromFb = shopDataFb;
+  if (parquesDataFb && parquesDataFb.state) window._parquesFromFb = parquesDataFb.state;
+
+  window._fbReady = true;
+  showSyncOverlay(false);
+  if (window._appInit) window._appInit();
+
+  // Realtime listeners
+  fbListen('hotel', data => {
+    if (window.hotel) { Object.assign(window.hotel, data); window.renderOutlets && window.renderOutlets(); }
+  });
+  fbListen('visited', data => {
+    if (data && data.visited && window.visited) {
+      data.visited.forEach((arr, i) => {
+        if (window.visited[i]) { window.visited[i].clear(); arr.forEach(v => window.visited[i].add(v)); }
+      });
+      window.renderOutlets && window.renderOutlets();
+      window.updateGlobal && window.updateGlobal();
+    }
+  });
+  fbListen('days', data => {
+    if (data && data.days && window.days) {
+      const fbVersion = data.v || 1;
+      if (fbVersion >= DAYS_VERSION) {
+        data.days.forEach((d, i) => { if (i < window.days.length) window.days[i] = d; else window.days.push(d); });
+        while (window.visited.length < window.days.length) window.visited.push(new Set());
+        window.renderOutlets && window.renderOutlets();
+        window.updateGlobal && window.updateGlobal();
+      }
+    }
+  });
+  fbListen('meals', data => {
+    if (data && data.meals && window._appInited) {
+      window._setMealData && window._setMealData(data.meals);
+      window.renderComidas && window.renderComidas();
+    }
+  });
+  fbListen('walmart', data => {
+    if (data && data.data && window._appInited) {
+      window._setWmData && window._setWmData(data.data);
+      window.renderWalmart && window.renderWalmart();
+    }
+  });
+  fbListen('wmChecked', data => {
+    if (data && data.checked && window.wmChecked) {
+      window.wmChecked.clear();
+      data.checked.forEach(k => window.wmChecked.add(k));
+      window.renderWalmart && window.renderWalmart();
+    }
+  });
+  fbListen('shopping', data => {
+    if (data && data.items !== undefined && window._appInited) {
+      window._shopFromFb = data;
+      window._setShopData && window._setShopData(data);
+      window.renderOutlets && window.renderOutlets();
+    }
+  });
+  fbListen('parques', data => {
+    if (data && data.state && window._appInited) {
+      parquesState = data.state;
+      window.renderParques && window.renderParques();
+      updateParquesCounter();
+    }
+  });
+}
+
+startApp();
