@@ -40,7 +40,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function fbSet(docId, data) {
-  try { await setDoc(doc(db, "orlando", docId), data); }
+  try { await setDoc(doc(db, "orlando", docId), data, { merge: true }); }
   catch(e) { devError("fbSet error", e); }
 }
 
@@ -51,13 +51,37 @@ async function fbGet(docId) {
   } catch(e) { devError("fbGet error", e); return null; }
 }
 
+// Serialización estable (claves ordenadas) para comparar "lo que mandé"
+// contra "lo que volvió" sin falsos positivos por orden de propiedades.
+function stableStringify(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+}
+
+// ─── Aviso de posible conflicto entre dispositivos ───
+// No hay merge real de listas (ver nota en syncedSave): esto es un heurístico
+// para detectar el caso de riesgo, no una solución de fondo. Si llega un
+// cambio remoto para un docId dentro de los pocos segundos posteriores a que
+// YO escribí ese mismo docId, y el valor que llegó es distinto al que yo
+// mandé, es señal de que otro dispositivo editó casi al mismo tiempo y uno
+// de los dos cambios probablemente se perdió.
+const CONFLICT_WINDOW_MS = 6000;
 function fbListen(docId, callback) {
   return onSnapshot(doc(db, "orlando", docId), snap => {
-    if (snap.exists()) callback(snap.data());
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const log = window._syncedWriteLog && window._syncedWriteLog[docId];
+    if (window._appInited && log && (Date.now() - log.at) < CONFLICT_WINDOW_MS) {
+      if (stableStringify(data) !== log.value) {
+        window.showMToast && window.showMToast('⚠️ Otro dispositivo editó esto casi al mismo tiempo — revisá que no se haya perdido nada');
+      }
+    }
+    callback(data);
   });
 }
 
-window._fb = { fbSet, fbGet, fbListen };
+window._fb = { fbSet, fbGet, fbListen, stableStringify };
 
 function showSyncOverlay(show) {
   let el = document.getElementById('sync-overlay');
@@ -1432,9 +1456,18 @@ function escapeHtml(str) {
 // `localValue` si no se pasa uno distinto) al docId de Firebase. Se admite
 // una forma distinta para Firebase porque algunos módulos (ej. "días")
 // envuelven el dato de otra manera para cada destino.
+// Registro de "lo último que yo mandé" por docId, usado por fbListen (en el
+// script de Firebase) para avisar si otro dispositivo pisó el mismo dato
+// casi al mismo tiempo. Ver comentario junto a CONFLICT_WINDOW_MS.
+window._syncedWriteLog = window._syncedWriteLog || {};
+
 function syncedSave(localKey, localValue, docId, fbValue) {
   try { localStorage.setItem(localKey, JSON.stringify(localValue)); } catch(e) {}
-  window._fb && window._fb.fbSet(docId, fbValue !== undefined ? fbValue : localValue);
+  const payload = fbValue !== undefined ? fbValue : localValue;
+  if (window._fb && window._fb.stableStringify) {
+    window._syncedWriteLog[docId] = { at: Date.now(), value: window._fb.stableStringify(payload) };
+  }
+  window._fb && window._fb.fbSet(docId, payload);
 }
 
 // localLoad: lee y parsea un valor de localStorage. null si no existe o
