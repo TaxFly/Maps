@@ -14,6 +14,7 @@ function setThemeChoice(choice) {
 function openSettingsDrawer() {
   document.getElementById('settingsDrawer').classList.add('open');
   document.getElementById('settingsOverlay').classList.add('open');
+  window.renderBudgetBox && window.renderBudgetBox();
 }
 function closeSettingsDrawer() {
   document.getElementById('settingsDrawer').classList.remove('open');

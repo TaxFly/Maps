@@ -74,10 +74,11 @@ async function startApp() {
     fbGet('parquesExtra'),
     fbGet('coordOverrides'),
     fbGet('parques'),
+    fbGet('budget'),
   ]);
 
   const val = (r) => r.status === 'fulfilled' ? r.value : null;
-  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, packingDataFb, customParksDataFb, parquesExtraDataFb, coordOverridesDataFb, parquesDataFb] = results.map(val);
+  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, packingDataFb, customParksDataFb, parquesExtraDataFb, coordOverridesDataFb, parquesDataFb, budgetDataFb] = results.map(val);
 
   if (hotelData) window._hotelFromFb = hotelData;
   if (daysData && daysData.days) window._daysFromFb = daysData.days;
@@ -91,6 +92,7 @@ async function startApp() {
   if (parquesExtraDataFb) window._parquesExtraFromFb = parquesExtraDataFb;
   if (coordOverridesDataFb) window._coordOverridesFromFb = coordOverridesDataFb;
   if (parquesDataFb && parquesDataFb.state) window._parquesFromFb = parquesDataFb.state;
+  if (budgetDataFb) window._budgetFromFb = budgetDataFb;
 
   window._fbReady = true;
   window._splashFbReady && window._splashFbReady();
@@ -176,6 +178,12 @@ async function startApp() {
       parquesState = data.state;
       window.renderParques && window.renderParques();
       updateParquesCounter();
+    }
+  });
+  fbListen('budget', data => {
+    if (data && window._appInited) {
+      window._setBudgetData && window._setBudgetData(data);
+      window.renderBudgetBox && window.renderBudgetBox();
     }
   });
 }

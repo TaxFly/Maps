@@ -279,6 +279,7 @@ if ('serviceWorker' in navigator) {
       <div class="header-title" id="main-title">Outlets <span class="ht-accent">Orlando</span></div>
       <div class="header-subtitle" id="main-subtitle">Cronograma de compras</div>
     </div>
+    <div class="today-card-slot" id="today-card-slot" style="display:none"></div>
     <div style="display:flex;align-items:center;gap:8px;">
       <div class="sync-dot" id="sync-dot" title="Estado de sincronización"></div>
       <button class="refresh-btn" id="refresh-btn" onclick="hardRefresh()" title="Actualizar app">↻</button>
@@ -316,6 +317,9 @@ if ('serviceWorker' in navigator) {
     <button class="theme-opt" data-theme-choice="dark" onclick="setThemeChoice('dark')"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z"/></svg> Oscuro</button>
     <button class="theme-opt" data-theme-choice="auto" onclick="setThemeChoice('auto')"><svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg> Auto</button>
   </div>
+
+  <span class="drawer-section-label">Presupuesto del viaje</span>
+  <div class="budget-box" id="budget-box"></div>
 
   <span class="drawer-section-label">Datos</span>
   <div class="drawer-actions">

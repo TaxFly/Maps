@@ -447,8 +447,11 @@ window._appInit = function() {
   extraZonesLoad();
   coordOverridesLoad();
   parquesLoad();
+  budgetLoad();
   renderOutlets();
   updateGlobal();
+  renderTodayCard();
+  loadArsRate();
   // Expose globals for realtime listeners
   window.visited = visited;
   window.days = days;
@@ -459,6 +462,7 @@ window._appInit = function() {
   window.renderWalmart = renderWalmart;
   window.renderParques = renderParques;
   window.updateGlobal = updateGlobal;
+  window.renderTodayCard = renderTodayCard;
   window._appInited = true;
   // Patch fbSet to show sync dot feedback
   patchFbSyncDot();
@@ -592,6 +596,7 @@ function renderComidas() {
   });
   html += '</div>';
   panel.innerHTML = html;
+  renderTodayCard();
 }
 
 function toggleMealCard(id) {
@@ -846,7 +851,270 @@ function closeAlert() {
   document.getElementById('alertOverlay').classList.remove('open');
 }
 
+// ─── CLIMA (Open-Meteo) ───────────────────────────────────────
+// Portado de Taxfly (tax.html) — misma fuente, gratis y sin API key.
+// Se cachea 30 min en localStorage para no golpear la API de más.
+const WEATHER_CITY = 'Orlando, FL';
+const WEATHER_KEY = 'orlando-weather-cache-v1';
+const WMO = {
+  0:'Despejado',1:'Mayormente despejado',2:'Parcialmente nublado',3:'Nublado',
+  45:'Niebla',48:'Niebla con escarcha',
+  51:'Llovizna leve',53:'Llovizna',55:'Llovizna intensa',
+  61:'Lluvia leve',63:'Lluvia',65:'Lluvia intensa',
+  71:'Nieve leve',73:'Nieve',75:'Nieve intensa',
+  80:'Chubascos leves',81:'Chubascos',82:'Chubascos fuertes',
+  95:'Tormenta',96:'Tormenta con granizo',99:'Tormenta fuerte'
+};
+const WI = {
+  0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',
+  51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',
+  71:'🌨️',73:'❄️',75:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',
+  95:'⛈️',96:'⛈️',99:'🌪️'
+};
+let weatherCache = localLoad(WEATHER_KEY) || { data: null, ts: 0 };
 
+async function fetchWeatherForToday(force) {
+  const now = Date.now();
+  if (!force && weatherCache.data && (now - weatherCache.ts) < 1800000) return weatherCache.data;
+  try {
+    const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(WEATHER_CITY) + '&count=1&language=es&format=json');
+    const geoData = await geoRes.json();
+    if (!geoData.results || !geoData.results.length) return weatherCache.data || null;
+    const { latitude, longitude } = geoData.results[0];
+    const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude +
+      '&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto');
+    const wData = await wRes.json();
+    const c = wData.current;
+    const result = { tempF: Math.round(c.temperature_2m), tempC: Math.round((c.temperature_2m - 32) * 5/9), code: c.weather_code };
+    weatherCache = { data: result, ts: now };
+    try { localStorage.setItem(WEATHER_KEY, JSON.stringify(weatherCache)); } catch(e) {}
+    return result;
+  } catch(e) { devError('weather fetch error', e); return weatherCache.data || null; }
+}
+
+// ─── COTIZACIÓN USD → ARS (dolarapi.com) ──────────────────────
+// Portado de Taxfly (compras.html). Usa el dólar "tarjeta" (el que
+// aplica a compras en USA con tarjeta argentina); si no está, cae al
+// oficial. Cache de 1h en localStorage.
+const FX_KEY = 'orlando-fx-cache-v1';
+let fxCache = localLoad(FX_KEY) || { rate: null, label: '', ts: 0 };
+let currentArsRate = fxCache.rate || null;
+
+async function fetchArsRate(force) {
+  const now = Date.now();
+  if (!force && fxCache.rate && (now - fxCache.ts) < 3600000) return fxCache;
+  try {
+    const r = await fetch('https://dolarapi.com/v1/dolares');
+    const d = await r.json();
+    const tarjeta = d.find(x => x.casa === 'tarjeta');
+    const oficial = d.find(x => x.casa === 'oficial');
+    const pick = tarjeta || oficial;
+    if (pick && pick.venta) {
+      fxCache = { rate: pick.venta, label: pick===tarjeta ? 'tarjeta' : 'oficial', ts: now };
+      try { localStorage.setItem(FX_KEY, JSON.stringify(fxCache)); } catch(e) {}
+    }
+    return fxCache;
+  } catch(e) { devError('fx fetch error', e); return fxCache; }
+}
+function fmtArs(n) { return Math.round(n).toLocaleString('es-AR'); }
+async function loadArsRate(force) {
+  const fx = await fetchArsRate(force);
+  currentArsRate = fx.rate || null;
+  if (document.getElementById('panel-walmart')?.classList.contains('active')) renderWalmart();
+}
+function wmRefreshFx(e) { e && e.stopPropagation(); loadArsRate(true); }
+
+// ─── HOY: mini card con el día del itinerario + clima ─────────
+// Reutiliza mealData (el cronograma maestro: fecha + tipo + comidas) para
+// mostrar de un vistazo qué toca hoy, sin tener que buscarlo entre tabs.
+// Aparece en el header de las 4 secciones (Outlets, Comidas, Market,
+// Parques) — no solo en Outlets.
+const MONTHS_ES = { ene:1, feb:2, mar:3, abr:4, may:5, jun:6, jul:7, ago:8, sep:9, oct:10, nov:11, dic:12 };
+function parseTripDayDate(str) {
+  if (!str) return null;
+  let m = String(str).match(/(\d{1,2})\/(\d{1,2})/);
+  if (m) return { d: +m[1], mo: +m[2] };
+  m = String(str).toLowerCase().match(/(\d{1,2})\s*([a-záéíóúñ]{3,})/i);
+  if (m) {
+    const mon = MONTHS_ES[m[2].slice(0,3)];
+    if (mon) return { d: +m[1], mo: mon };
+  }
+  return null;
+}
+function findTodayMealDay() {
+  if (typeof mealData === 'undefined' || !mealData) return null;
+  const now = new Date();
+  const td = now.getDate(), tm = now.getMonth() + 1;
+  return mealData.find(d => { const p = parseTripDayDate(d.date); return p && p.d === td && p.mo === tm; }) || null;
+}
+function renderTodayCard() {
+  const slot = document.getElementById('today-card-slot');
+  if (!slot) return;
+  const day = findTodayMealDay();
+  if (!day) { slot.style.display = 'none'; slot.innerHTML = ''; return; }
+  const meta = (typeof typeConf !== 'undefined' && typeConf[day.type]) || { icon: 'calendar' };
+  const mealsLine = (day.meals || []).filter(m => m && m !== '—').slice(0, 2).join(' · ');
+  slot.style.display = 'flex';
+  slot.innerHTML = `
+    <div class="today-card">
+      <span class="today-card-badge">HOY</span>
+      <span class="today-card-icon">${ic(meta.icon || 'calendar', 15)}</span>
+      <div class="today-card-body">
+        <div class="today-card-title">${escapeHtml(day.title)}</div>
+        ${mealsLine ? `<div class="today-card-sub">${escapeHtml(mealsLine)}</div>` : ''}
+      </div>
+      <span class="today-card-weather" id="today-card-weather">···</span>
+    </div>`;
+  fetchWeatherForToday().then(w => {
+    const wEl = document.getElementById('today-card-weather');
+    if (!wEl) return;
+    if (!w) { wEl.textContent = ''; return; }
+    wEl.innerHTML = `${WI[w.code] || '🌡️'} ${w.tempF}°F`;
+    wEl.title = (WMO[w.code] || '') + ' · ' + w.tempC + '°C';
+  });
+}
+
+// ─── PRESUPUESTO DEL VIAJE ─────────────────────────────────────
+// Portado del sistema de presupuesto de Taxfly (compras.html): un total
+// base + una lista de gastos. Walmart se suma solo (ya tiene precio por
+// ítem); Outlets/Comidas/Parques se cargan a mano porque ahí no hay
+// precios cargados ítem por ítem. Vive en Ajustes porque es un total
+// que cruza las 4 secciones, no algo propio de una sola.
+const BUDGET_KEY = 'orlando-budget-v1';
+let budgetData = Object.assign({ total: 0, gastos: [] }, localLoad(BUDGET_KEY) || {});
+let budgetEditingTotal = false;
+let budgetAddingCat = null;
+function budgetLoad() {
+  const d = syncedLoad(BUDGET_KEY, window._budgetFromFb);
+  if (d) budgetData = Object.assign({ total: 0, gastos: [] }, d);
+}
+function budgetSave() { syncedSave(BUDGET_KEY, budgetData, 'budget', budgetData); }
+window._setBudgetData = function(d) { budgetData = Object.assign({ total: 0, gastos: [] }, d); };
+
+const budgetCatMeta = {
+  outlets: { label: 'Outlets', icon: 'bag' },
+  comidas: { label: 'Comidas', icon: 'utensils' },
+  parques: { label: 'Parques', icon: 'ferris' },
+  otros:   { label: 'Otros',   icon: 'backpack' },
+};
+function budgetManualTotal() { return budgetData.gastos.reduce((s, g) => s + (g.monto || 0), 0); }
+function budgetSpentTotal() { return wmTotalChecked() + budgetManualTotal(); }
+
+function budgetEditTotal() {
+  budgetEditingTotal = true;
+  renderBudgetBox();
+  setTimeout(() => document.getElementById('budget-total-input')?.focus(), 30);
+}
+function budgetSetTotal() {
+  const input = document.getElementById('budget-total-input');
+  const v = parseFloat(input?.value);
+  if (isNaN(v) || v < 0) { input?.classList.add('error'); return; }
+  budgetData.total = v;
+  budgetEditingTotal = false;
+  budgetSave();
+  renderBudgetBox();
+}
+function budgetOpenAdd(cat) {
+  budgetAddingCat = cat;
+  renderBudgetBox();
+  setTimeout(() => document.getElementById('budget-add-amount')?.focus(), 30);
+}
+function budgetCancelAdd() { budgetAddingCat = null; renderBudgetBox(); }
+function budgetConfirmAdd() {
+  const amountEl = document.getElementById('budget-add-amount');
+  const noteEl = document.getElementById('budget-add-note');
+  const amount = parseFloat(amountEl?.value);
+  if (isNaN(amount) || amount <= 0) { amountEl?.classList.add('error'); return; }
+  budgetData.gastos.push({ id: 'g' + Date.now(), cat: budgetAddingCat, monto: amount, nota: (noteEl?.value || '').trim() });
+  budgetAddingCat = null;
+  budgetSave();
+  renderBudgetBox();
+}
+function budgetDeleteGasto(id) {
+  budgetData.gastos = budgetData.gastos.filter(g => g.id !== id);
+  budgetSave();
+  renderBudgetBox();
+}
+function renderBudgetBox() {
+  const box = document.getElementById('budget-box');
+  if (!box) return;
+  const hasTotal = budgetData.total > 0 && !budgetEditingTotal;
+
+  if (!hasTotal) {
+    box.innerHTML = `
+      <div class="budget-set-row">
+        <input type="number" min="0" step="1" id="budget-total-input" class="wm-edit-input" placeholder="Presupuesto total (USD)" value="${budgetData.total || ''}" oninput="this.classList.remove('error')">
+        <button class="mbtn msave" onclick="budgetSetTotal()">Guardar</button>
+      </div>`;
+    return;
+  }
+
+  const spent = budgetSpentTotal();
+  const remaining = budgetData.total - spent;
+  const pct = budgetData.total > 0 ? Math.min(100, Math.round(spent / budgetData.total * 100)) : 0;
+  const wmSpent = wmTotalChecked();
+
+  let gastosHtml = '';
+  if (wmSpent > 0) {
+    gastosHtml += `
+      <div class="budget-gasto-row budget-gasto-auto">
+        <span class="budget-gasto-cat">${ic('cart',13)} Walmart <span class="budget-gasto-auto-tag">auto</span></span>
+        <span class="budget-gasto-monto">$${wmSpent.toFixed(2)}</span>
+      </div>`;
+  }
+  budgetData.gastos.forEach(g => {
+    const meta = budgetCatMeta[g.cat] || budgetCatMeta.otros;
+    gastosHtml += `
+      <div class="budget-gasto-row">
+        <span class="budget-gasto-cat">${ic(meta.icon,13)} ${meta.label}${g.nota ? ' · ' + escapeHtml(g.nota) : ''}</span>
+        <span class="budget-gasto-monto">$${g.monto.toFixed(2)}
+          <button class="wm-icon-btn wm-icon-del" onclick="budgetDeleteGasto('${g.id}')" title="Eliminar" aria-label="Eliminar gasto">✕</button>
+        </span>
+      </div>`;
+  });
+
+  let addForm;
+  if (budgetAddingCat) {
+    const meta = budgetCatMeta[budgetAddingCat];
+    addForm = `
+      <div class="wm-edit-form" style="margin-top:8px" onclick="event.stopPropagation()">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--accent);display:flex;align-items:center;gap:6px">${ic(meta.icon,13)} Nuevo gasto — ${meta.label}</div>
+        <div class="budget-edit-row">
+          <input type="number" min="0" step="0.01" id="budget-add-amount" class="wm-edit-input" placeholder="$ monto" oninput="this.classList.remove('error')">
+          <input type="text" id="budget-add-note" class="wm-edit-input" placeholder="Nota (opcional)">
+        </div>
+        <div class="wm-edit-actions">
+          <button class="mbtn" onclick="budgetCancelAdd()">Cancelar</button>
+          <button class="mbtn msave" onclick="budgetConfirmAdd()">Agregar</button>
+        </div>
+      </div>`;
+  } else {
+    addForm = `
+      <div class="budget-add-cats">
+        ${Object.keys(budgetCatMeta).map(cat => `<button class="budget-add-cat-btn" onclick="budgetOpenAdd('${cat}')">${ic(budgetCatMeta[cat].icon,13)} ${budgetCatMeta[cat].label}</button>`).join('')}
+      </div>`;
+  }
+
+  box.innerHTML = `
+    <div class="budget-summary">
+      <div class="budget-summary-row">
+        <span>Presupuesto</span>
+        <span class="budget-summary-val">$${budgetData.total.toFixed(2)} <button class="wm-icon-btn" onclick="budgetEditTotal()" title="Editar">${ic('pencil',12)}</button></span>
+      </div>
+      <div class="budget-summary-row">
+        <span>Gastado</span>
+        <span class="budget-summary-val">$${spent.toFixed(2)}</span>
+      </div>
+      <div class="budget-summary-row budget-summary-remaining${remaining<0?' negative':''}">
+        <span>${remaining>=0?'Restante':'Excedido'}</span>
+        <span class="budget-summary-val">$${Math.abs(remaining).toFixed(2)}</span>
+      </div>
+      <div class="wm-progress-bar-bg"><div class="wm-progress-bar-fill" style="width:${pct}%;${pct>=100?'background:#ef4444':''}"></div></div>
+    </div>
+    <div class="budget-gastos-list">${gastosHtml || '<div class="budget-empty">Sin gastos cargados todavía.</div>'}</div>
+    ${addForm}`;
+}
+window.renderBudgetBox = renderBudgetBox;
 
 
 
@@ -1135,6 +1403,11 @@ function renderWalmart() {
       <span class="wm-total-label">Total del carrito</span>
       <span class="wm-total-val">$${totalChk} <span style="font-size:12px;color:var(--muted);font-weight:400;">/ $${totalAll}</span></span>
     </div>
+    ${currentArsRate ? `
+    <div class="wm-total-bar wm-total-bar-ars" onclick="wmRefreshFx(event)" title="Tocar para actualizar cotización">
+      <span class="wm-total-label">≈ pesos <span class="wm-fx-badge">$${fmtArs(currentArsRate)}</span></span>
+      <span class="wm-total-val wm-total-val-ars">$${fmtArs(wmTotalChecked()*currentArsRate)} <span style="font-size:12px;color:var(--muted);font-weight:400;">/ $${fmtArs(wmTotalAll()*currentArsRate)}</span></span>
+    </div>` : `<div class="wm-fx-loading">Cotización USD→ARS: buscando…</div>`}
     <div class="wm-progress-bar-bg">
       <div class="wm-progress-bar-fill" style="width:${pct}%"></div>
     </div>`;
@@ -1564,6 +1837,7 @@ function renderDayContent(d) {
         <div class="day-map-header" style="display:flex;align-items:center;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);">
           <div class="day-map-title">${ic('map',13)} Mapa del día · ${stopsWithCoords.length} paradas</div>
         </div>
+        ${stopsWithCoords.length > 1 ? `<div class="day-route-info" id="day-route-info-${d}">Calculando ruta…</div>` : ''}
         <div id="day-map-container-${d}" class="day-map-container"></div>
       </div>`;
   }
@@ -1573,6 +1847,44 @@ function renderDayContent(d) {
   }
 
   return html;
+}
+
+// ─── RUTEO ENTRE PARADAS (OSRM, servidor demo público y gratis) ─
+// Le da valor real al cronograma de outlets: cuánto se tarda de una
+// parada a la siguiente, no solo dónde están. Se cachea en memoria por
+// combinación de coordenadas para no repetir el pedido en cada render.
+let _routeCache = {};
+function fmtDist(m) { return m < 1000 ? Math.round(m) + ' m' : (m / 1000).toFixed(1) + ' km'; }
+function fmtDur(s) {
+  const min = Math.round(s / 60);
+  return min < 60 ? min + ' min' : Math.floor(min / 60) + 'h ' + (min % 60) + 'min';
+}
+function applyRouteInfo(d, route) {
+  const infoEl = document.getElementById('day-route-info-' + d);
+  if (infoEl) {
+    const legsHtml = (route.legs || []).map((leg, i) =>
+      `<span class="route-leg-chip">${i+1}→${i+2} · ${fmtDur(leg.duration)} · ${fmtDist(leg.distance)}</span>`
+    ).join('');
+    infoEl.innerHTML = `
+      <div class="route-total">${ic('pin',12)} ${fmtDur(route.duration)} · ${fmtDist(route.distance)} en auto (total)</div>
+      <div class="route-legs">${legsHtml}</div>`;
+  }
+  if (_leafletMap && route.geometry) {
+    L.geoJSON(route.geometry, { style: { color: '#2563eb', weight: 3, opacity: 0.55, dashArray: '2,7' } }).addTo(_leafletMap);
+  }
+}
+async function fetchRouteInfo(d, stopsWithCoords) {
+  const infoEl = document.getElementById('day-route-info-' + d);
+  const key = stopsWithCoords.map(s => s.lat.toFixed(5) + ',' + s.lng.toFixed(5)).join(';');
+  if (_routeCache[key]) { applyRouteInfo(d, _routeCache[key]); return; }
+  try {
+    const coordsStr = stopsWithCoords.map(s => s.lng + ',' + s.lat).join(';');
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`);
+    const data = await res.json();
+    if (!data.routes || !data.routes.length) { if (infoEl) infoEl.textContent = ''; return; }
+    _routeCache[key] = data.routes[0];
+    applyRouteInfo(d, data.routes[0]);
+  } catch(e) { devError('route fetch error', e); if (infoEl) infoEl.textContent = ''; }
 }
 
 // ─── MAP LOGIC ──────────────────────────────────────────────
@@ -1643,6 +1955,8 @@ function initDayMap(d) {
 
   _leafletMap.fitBounds(bounds, { padding: [28, 28] });
   setTimeout(() => _leafletMap && _leafletMap.invalidateSize(), 150);
+
+  if (stopsWithCoords.length > 1) fetchRouteInfo(d, stopsWithCoords);
 }
 function stopStartEdit(dayIdx, stopIdx) {
   stopEditingIdx = { dayIdx, stopIdx };

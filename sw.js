@@ -1,8 +1,13 @@
 // Service worker — deja usable el checklist (Outlets/Comidas/Market/Parques)
 // sin señal, típico en un parque con wifi malo o sin datos.
 // Si tocás app.js/styles.css y no ves el cambio reflejado, subí CACHE_VERSION.
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = 'orlando-planning-' + CACHE_VERSION;
+// Cache aparte para los tiles del mapa (OpenStreetMap): así el mapa del
+// día funciona sin señal (típico en un parque con wifi malo). Se recorta
+// solo por cantidad de tiles, para no crecer sin límite.
+const TILES_CACHE_NAME = 'orlando-tiles-v1';
+const MAX_TILES = 600;
 
 const APP_SHELL = [
   './',
@@ -27,10 +32,22 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys
+        .filter((k) => k !== CACHE_NAME && k !== TILES_CACHE_NAME)
+        .map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
+
+// Recorta el cache de tiles cuando se pasa de MAX_TILES, borrando las
+// entradas más viejas (el orden de caches.keys() sigue el de inserción).
+async function trimTileCache() {
+  const cache = await caches.open(TILES_CACHE_NAME);
+  const keys = await cache.keys();
+  if (keys.length <= MAX_TILES) return;
+  const toDelete = keys.slice(0, keys.length - MAX_TILES);
+  await Promise.all(toDelete.map((k) => cache.delete(k)));
+}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -56,8 +73,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Recursos externos (fuente, Leaflet): network-first con fallback a cache,
-  // para no pisar una versión nueva pero sí poder seguir usándolos offline.
+  // Tiles del mapa (OpenStreetMap): cache-first + refresco en segundo plano.
+  // Así, si ya se vio el mapa de un día una vez, queda disponible sin señal
+  // (el objetivo es poder usarlo en el parque sin datos).
+  if (/(^|\.)tile\.openstreetmap\.org$/.test(url.hostname)) {
+    event.respondWith(
+      caches.open(TILES_CACHE_NAME).then((cache) =>
+        cache.match(req).then((cached) => {
+          const network = fetch(req).then((res) => {
+            if (res && (res.ok || res.type === 'opaque')) {
+              cache.put(req, res.clone()).then(trimTileCache);
+            }
+            return res;
+          }).catch(() => cached);
+          return cached || network;
+        })
+      )
+    );
+    return;
+  }
+
+  // Otros recursos externos (fuente, Leaflet, OSRM): network-first con
+  // fallback a cache, para no pisar una versión nueva pero sí poder
+  // seguir usándolos offline.
   event.respondWith(
     fetch(req).then((res) => {
       if (res && (res.ok || res.type === 'opaque')) {
