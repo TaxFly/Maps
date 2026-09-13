@@ -1,7 +1,7 @@
 // Service worker — deja usable el checklist (Outlets/Comidas/Market/Parques)
 // sin señal, típico en un parque con wifi malo o sin datos.
 // Si tocás app.js/styles.css y no ves el cambio reflejado, subí CACHE_VERSION.
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = 'orlando-planning-' + CACHE_VERSION;
 // Cache aparte para los tiles del mapa (OpenStreetMap): así el mapa del
 // día funciona sin señal (típico en un parque con wifi malo). Se recorta
@@ -59,16 +59,18 @@ self.addEventListener('fetch', (event) => {
   // con localStorage — no queremos servir una respuesta vieja acá.
   if (url.hostname.includes('firestore') || url.hostname.includes('firebaseio')) return;
 
-  // App shell propio: cache-first, así abre instantáneo y sin red.
+  // App shell propio: NETWORK-FIRST. Mientras la app siga cambiando tan
+  // seguido, priorizamos siempre traer la versión más nueva si hay señal
+  // — cache-first ya nos hizo servir JS viejo más de una vez (por eso el
+  // bug de "entro con un perfil nuevo y veo datos de otro perfil": no
+  // eran los datos, era código viejo). Si no hay señal, recién ahí cae
+  // al cache, para que la PWA siga abriendo en el parque sin wifi.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(req).then((cached) => {
-        const network = fetch(req).then((res) => {
-          if (res && res.ok) caches.open(CACHE_NAME).then((c) => c.put(req, res.clone()));
-          return res;
-        }).catch(() => cached);
-        return cached || network;
-      })
+      fetch(req).then((res) => {
+        if (res && res.ok) caches.open(CACHE_NAME).then((c) => c.put(req, res.clone()));
+        return res;
+      }).catch(() => caches.match(req))
     );
     return;
   }

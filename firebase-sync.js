@@ -87,20 +87,27 @@ async function startApp() {
   // El splash lindo de index.html ya está en pantalla desde el arranque;
   // acá solo esperamos los datos de Firebase, sin tapar nada con una
   // pantalla extra.
+  // Red de seguridad: si algún pedido a Firestore se cuelga (mala señal,
+  // hiccup del lado del servidor, etc.), no dejamos la app esperando para
+  // siempre — a los 10s seguimos con lo que haya llegado hasta ahí.
+  const withTimeout = (p, ms) => Promise.race([
+    p,
+    new Promise((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
   const results = await Promise.allSettled([
-    fbGet('hotel'),
-    fbGet('days'),
-    fbGet('visited'),
-    fbGet('meals'),
-    fbGet('walmart'),
-    fbGet('wmChecked'),
-    fbGet('shopping'),
-    fbGet('packing'),
-    fbGet('customParks'),
-    fbGet('parquesExtra'),
-    fbGet('coordOverrides'),
-    fbGet('parques'),
-    fbGet('budget'),
+    withTimeout(fbGet('hotel'), 10000),
+    withTimeout(fbGet('days'), 10000),
+    withTimeout(fbGet('visited'), 10000),
+    withTimeout(fbGet('meals'), 10000),
+    withTimeout(fbGet('walmart'), 10000),
+    withTimeout(fbGet('wmChecked'), 10000),
+    withTimeout(fbGet('shopping'), 10000),
+    withTimeout(fbGet('packing'), 10000),
+    withTimeout(fbGet('customParks'), 10000),
+    withTimeout(fbGet('parquesExtra'), 10000),
+    withTimeout(fbGet('coordOverrides'), 10000),
+    withTimeout(fbGet('parques'), 10000),
+    withTimeout(fbGet('budget'), 10000),
   ]);
 
   const val = (r) => r.status === 'fulfilled' ? r.value : null;
