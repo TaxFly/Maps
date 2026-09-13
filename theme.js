@@ -34,3 +34,34 @@ function closeSettingsDrawer() {
   try { choice = localStorage.getItem(THEME_KEY) || 'auto'; } catch(e) {}
   applyThemeChoice(choice);
 })();
+
+// ─── Foto de perfil en el botón de Ajustes ─────────────────────────
+// Mismo patrón que Taxfly: el botón de ajustes ES la foto del perfil
+// activo (mismo localStorage, mismo origen). Si no hay foto cargada,
+// se queda con el ícono de engranaje de siempre.
+(function initProfileButton() {
+  let foto = null, nombre = null;
+  try {
+    foto = localStorage.getItem('perfilActivoFoto');
+    nombre = localStorage.getItem('perfilActivoNombre');
+  } catch(e) {}
+  const btn = document.getElementById('btnSettings');
+  if (foto && btn) {
+    btn.style.backgroundImage = `url('${foto}')`;
+    btn.innerHTML = '';
+  }
+  const nameEl = document.getElementById('settings-profile-name');
+  if (nameEl) nameEl.textContent = nombre || '—';
+  const avatarEl = document.getElementById('settings-profile-avatar');
+  if (avatarEl) {
+    if (foto) { avatarEl.style.backgroundImage = `url('${foto}')`; }
+    else { avatarEl.textContent = (nombre || '?').trim().charAt(0).toUpperCase(); }
+  }
+})();
+
+// Manda a elegir otro perfil en Taxfly (mismo mecanismo de "volver acá"
+// que ya usa el login cuando no hay sesión/perfil activo).
+function changeProfile() {
+  try { localStorage.setItem('taxusa_pending_redirect', location.href); } catch(e) {}
+  window.location.href = 'https://taxfly.github.io/taxfly/profiles.html';
+}

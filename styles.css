@@ -203,6 +203,8 @@ body {
   height: 36px;
   border-radius: 50%;
   background: var(--surface2);
+  background-size: cover;
+  background-position: center;
   border: 1px solid var(--border);
   cursor: pointer;
   display: flex;
@@ -1529,3 +1531,33 @@ body.theme-parques .global-counter { color: #8b5cf6; border-color: rgba(139,92,2
 .size-guide-table th { background: var(--surface2); color: var(--muted); font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: .3px; }
 .size-guide-table td { border-top: 1px solid var(--border); color: var(--text); }
 .size-guide-table tr:nth-child(even) td { background: color-mix(in srgb, var(--surface2) 55%, transparent); }
+
+/* ═══════ TARJETA DE PERFIL (cajón de Ajustes) ═══════ */
+.settings-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.settings-profile-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--theme-accent);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  font-family: 'DM Sans', sans-serif;
+}
+.settings-profile-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+.settings-profile-name { font-family: 'DM Sans', sans-serif; font-size: 13.5px; font-weight: 700; color: var(--text); }
