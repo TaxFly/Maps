@@ -1513,7 +1513,15 @@ body.theme-parques .global-counter { color: #8b5cf6; border-color: rgba(139,92,2
 .odt-weather { margin-left: 5px; font-size: 9px; font-weight: 700; white-space: nowrap; }
 
 /* ═══════ GUÍA DE TALLES US ↔ ARG ═══════ */
-.size-guide-block { margin-bottom: 16px; }
+.modal-box-wide { max-width: 420px; }
+@media (min-width: 760px) {
+  .modal-box-wide { max-width: 760px; }
+}
+.size-guide-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 760px) {
+  .size-guide-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+}
+.size-guide-block { margin-bottom: 0; }
 .size-guide-title { font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
 .size-guide-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .size-guide-table { width: 100%; border-collapse: collapse; font-size: 12px; }

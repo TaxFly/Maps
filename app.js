@@ -952,12 +952,13 @@ async function loadWeatherForecast(force) {
 }
 
 // ─── COTIZACIÓN USD → ARS (dolarapi.com) ──────────────────────
-// Portado de Taxfly (compras.html). Usa el dólar "tarjeta" (el que
-// aplica a compras en USA con tarjeta argentina); si no está, cae al
-// oficial. Cache de 1h en localStorage.
+// Portado de Taxfly (compras.html). Usa el dólar OFICIAL (no el
+// "tarjeta"), que es la referencia habitual para presupuestar un viaje;
+// si por algo no viene en la respuesta, cae al tarjeta como backup.
 const FX_KEY = 'orlando-fx-cache-v1';
 let fxCache = localLoad(FX_KEY) || { rate: null, label: '', ts: 0 };
 let currentArsRate = fxCache.rate || null;
+let currentArsLabel = fxCache.label || '';
 
 async function fetchArsRate(force) {
   const now = Date.now();
@@ -965,11 +966,11 @@ async function fetchArsRate(force) {
   try {
     const r = await fetch('https://dolarapi.com/v1/dolares');
     const d = await r.json();
-    const tarjeta = d.find(x => x.casa === 'tarjeta');
     const oficial = d.find(x => x.casa === 'oficial');
-    const pick = tarjeta || oficial;
+    const tarjeta = d.find(x => x.casa === 'tarjeta');
+    const pick = oficial || tarjeta;
     if (pick && pick.venta) {
-      fxCache = { rate: pick.venta, label: pick===tarjeta ? 'tarjeta' : 'oficial', ts: now };
+      fxCache = { rate: pick.venta, label: pick===oficial ? 'oficial' : 'tarjeta', ts: now };
       try { localStorage.setItem(FX_KEY, JSON.stringify(fxCache)); } catch(e) {}
     }
     return fxCache;
@@ -979,6 +980,7 @@ function fmtArs(n) { return Math.round(n).toLocaleString('es-AR'); }
 async function loadArsRate(force) {
   const fx = await fetchArsRate(force);
   currentArsRate = fx.rate || null;
+  currentArsLabel = fx.label || '';
   if (document.getElementById('panel-walmart')?.classList.contains('active')) renderWalmart();
 }
 function wmRefreshFx(e) { e && e.stopPropagation(); loadArsRate(true); }
@@ -1006,11 +1008,45 @@ function findTodayMealDay() {
   const td = now.getDate(), tm = now.getMonth() + 1;
   return mealData.find(d => { const p = parseTripDayDate(d.date); return p && p.d === td && p.mo === tm; }) || null;
 }
+// Si hoy no es ninguno de los días del viaje (lo más común: todavía falta
+// para viajar), calculamos la próxima fecha en la que cae el primer día
+// del cronograma, tomando el año actual o el que viene si ya pasó.
+function nextOccurrence(mo, d) {
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let candidate = new Date(now.getFullYear(), mo - 1, d);
+  if (candidate < today0) candidate = new Date(now.getFullYear() + 1, mo - 1, d);
+  return candidate;
+}
+function daysUntilTrip() {
+  if (typeof mealData === 'undefined' || !mealData || !mealData.length) return null;
+  const first = mealData[0];
+  const p = parseTripDayDate(first.date);
+  if (!p) return null;
+  const target = nextOccurrence(p.mo, p.d);
+  const today0 = new Date();
+  today0.setHours(0, 0, 0, 0);
+  const days = Math.round((target - today0) / 86400000);
+  return { days, title: first.title, dateLabel: first.date };
+}
 function renderTodayCard() {
   const slot = document.getElementById('today-card-slot');
   if (!slot) return;
   const day = findTodayMealDay();
-  if (!day) { slot.style.display = 'none'; slot.innerHTML = ''; return; }
+  if (!day) {
+    const countdown = daysUntilTrip();
+    if (!countdown || countdown.days <= 0) { slot.style.display = 'none'; slot.innerHTML = ''; return; }
+    slot.style.display = 'flex';
+    slot.innerHTML = `
+      <div class="today-card">
+        <span class="today-card-icon">${ic('plane', 15)}</span>
+        <div class="today-card-body">
+          <div class="today-card-title">Faltan ${countdown.days} día${countdown.days === 1 ? '' : 's'} para el viaje</div>
+          <div class="today-card-sub">${escapeHtml(countdown.title)} · ${escapeHtml(countdown.dateLabel)}</div>
+        </div>
+      </div>`;
+    return;
+  }
   const meta = (typeof typeConf !== 'undefined' && typeConf[day.type]) || { icon: 'calendar' };
   const mealsLine = (day.meals || []).filter(m => m && m !== '—').slice(0, 2).join(' · ');
   slot.style.display = 'flex';
@@ -1467,7 +1503,7 @@ function renderWalmart() {
     </div>
     ${currentArsRate ? `
     <div class="wm-total-bar wm-total-bar-ars" onclick="wmRefreshFx(event)" title="Tocar para actualizar cotización">
-      <span class="wm-total-label">≈ pesos <span class="wm-fx-badge">$${fmtArs(currentArsRate)}</span></span>
+      <span class="wm-total-label">≈ pesos <span class="wm-fx-badge">$${fmtArs(currentArsRate)} ${currentArsLabel === 'oficial' ? 'oficial' : currentArsLabel}</span></span>
       <span class="wm-total-val wm-total-val-ars">$${fmtArs(wmTotalChecked()*currentArsRate)} <span style="font-size:12px;color:var(--muted);font-weight:400;">/ $${fmtArs(wmTotalAll()*currentArsRate)}</span></span>
     </div>` : `<div class="wm-fx-loading">Cotización USD→ARS: buscando…</div>`}
     <div class="wm-progress-bar-bg">
@@ -2266,7 +2302,7 @@ const SIZE_GUIDE = [
   ]},
 ];
 function renderSizeGuide() {
-  return SIZE_GUIDE.map(g => `
+  return `<div class="size-guide-grid">${SIZE_GUIDE.map(g => `
     <div class="size-guide-block">
       <div class="size-guide-title">${g.title}</div>
       <div class="size-guide-table-wrap">
@@ -2275,7 +2311,7 @@ function renderSizeGuide() {
           <tbody>${g.rows.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody>
         </table>
       </div>
-    </div>`).join('');
+    </div>`).join('')}</div>`;
 }
 function openSizeGuide() {
   document.getElementById('size-guide-content').innerHTML = renderSizeGuide();
