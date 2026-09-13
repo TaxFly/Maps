@@ -1,3 +1,9 @@
+// Key 'theme' compartida con TaxUSA/Taxfly (mismo dominio): cuando el
+// usuario elige "Auto" acá, borramos la key en vez de guardar el string
+// 'auto', porque Taxfly interpreta "sin key" como auto y cualquier otro
+// valor lo toma literal para el atributo data-theme (guardar 'auto' ahí
+// rompería el tema en Taxfly).
+const THEME_KEY = 'theme';
 function applyThemeChoice(choice) {
   if (choice === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
   else if (choice === 'light') document.documentElement.setAttribute('data-theme', 'light');
@@ -8,7 +14,10 @@ function applyThemeChoice(choice) {
   document.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('active', b.dataset.themeChoice === choice));
 }
 function setThemeChoice(choice) {
-  try { localStorage.setItem('theme-choice', choice); } catch(e) {}
+  try {
+    if (choice === 'auto') localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, choice);
+  } catch(e) {}
   applyThemeChoice(choice);
 }
 function openSettingsDrawer() {
@@ -22,6 +31,6 @@ function closeSettingsDrawer() {
 }
 (function initTheme() {
   let choice = 'auto';
-  try { choice = localStorage.getItem('theme-choice') || 'auto'; } catch(e) {}
+  try { choice = localStorage.getItem(THEME_KEY) || 'auto'; } catch(e) {}
   applyThemeChoice(choice);
 })();

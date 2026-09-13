@@ -860,6 +860,27 @@ function closeAlert() {
   document.getElementById('alertOverlay').classList.remove('open');
 }
 
+// ─── CACHE COMPARTIDO CON TAXFLY (mismo dominio → mismo localStorage) ──
+// Taxfly y Maps le pegan a las mismas APIs (Open-Meteo, dolarapi.com) por
+// separado. Como comparten origen, guardamos la respuesta CRUDA de cada
+// API bajo una key común: quien la pida primero "calienta" el cache para
+// la otra app, y cada una sigue procesando esos datos crudos a su manera
+// (Taxfly muestra sensación térmica/humedad/viento que acá no usamos, y
+// viceversa con el pronóstico extendido). No se comparte el resultado ya
+// procesado, para no romper campos que una app necesita y la otra no pide.
+function sharedCacheGet(key, ttlMs) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (!c || (Date.now() - c.ts) > ttlMs) return null;
+    return c.data;
+  } catch(e) { return null; }
+}
+function sharedCacheSet(key, data) {
+  try { localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch(e) {}
+}
+
 // ─── CLIMA (Open-Meteo) ───────────────────────────────────────
 // Portado de Taxfly (tax.html) — misma fuente, gratis y sin API key.
 // Se cachea 30 min en localStorage para no golpear la API de más.
@@ -884,11 +905,15 @@ let weatherCache = localLoad(WEATHER_KEY) || { data: null, ts: 0 };
 let _cityGeo = null;
 async function geocodeWeatherCity() {
   if (_cityGeo) return _cityGeo;
+  const cacheKey = 'shared-geo-cache::' + WEATHER_CITY.trim().toLowerCase();
+  const cached = sharedCacheGet(cacheKey, 90 * 24 * 3600000); // 90 días: la ubicación de una ciudad no cambia
+  if (cached) { _cityGeo = cached; return _cityGeo; }
   try {
     const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(WEATHER_CITY) + '&count=1&language=es&format=json');
     const geoData = await geoRes.json();
     if (!geoData.results || !geoData.results.length) return null;
     _cityGeo = { latitude: geoData.results[0].latitude, longitude: geoData.results[0].longitude };
+    sharedCacheSet(cacheKey, _cityGeo);
     return _cityGeo;
   } catch(e) { devError('geocode error', e); return null; }
 }
@@ -899,10 +924,19 @@ async function fetchWeatherForToday(force) {
   try {
     const geo = await geocodeWeatherCity();
     if (!geo) return weatherCache.data || null;
-    const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + geo.latitude + '&longitude=' + geo.longitude +
-      '&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto');
-    const wData = await wRes.json();
-    const c = wData.current;
+    // Mismo set de parámetros "current" que pide Taxfly, para que la
+    // respuesta cruda sirva para las dos apps (acá solo usamos temp+code,
+    // Taxfly además muestra sensación térmica, humedad y viento).
+    const sharedKey = 'shared-weather-current::' + geo.latitude.toFixed(2) + ',' + geo.longitude.toFixed(2);
+    let c = sharedCacheGet(sharedKey, 1800000);
+    if (!c) {
+      const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + geo.latitude + '&longitude=' + geo.longitude +
+        '&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m' +
+        '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto');
+      const wData = await wRes.json();
+      c = wData.current;
+      sharedCacheSet(sharedKey, c);
+    }
     const result = { tempF: Math.round(c.temperature_2m), tempC: Math.round((c.temperature_2m - 32) * 5/9), code: c.weather_code };
     weatherCache = { data: result, ts: now };
     try { localStorage.setItem(WEATHER_KEY, JSON.stringify(weatherCache)); } catch(e) {}
@@ -912,7 +946,8 @@ async function fetchWeatherForToday(force) {
 
 // Pronóstico extendido (hasta 16 días, límite gratis de Open-Meteo): para
 // que cada pestaña de día del cronograma de Outlets muestre qué clima
-// espera, y ayude a decidir qué día conviene para exteriores.
+// espera, y ayude a decidir qué día conviene para exteriores. Taxfly no
+// tiene esta funcionalidad, así que no hay nada que compartir acá.
 const FORECAST_KEY = 'orlando-forecast-cache-v1';
 let weatherForecast = localLoad(FORECAST_KEY) || { data: null, ts: 0 };
 async function fetchWeatherForecast(force) {
@@ -956,6 +991,7 @@ async function loadWeatherForecast(force) {
 // "tarjeta"), que es la referencia habitual para presupuestar un viaje;
 // si por algo no viene en la respuesta, cae al tarjeta como backup.
 const FX_KEY = 'orlando-fx-cache-v1';
+const SHARED_FX_KEY = 'shared-dolarapi-raw-v1';
 let fxCache = localLoad(FX_KEY) || { rate: null, label: '', ts: 0 };
 let currentArsRate = fxCache.rate || null;
 let currentArsLabel = fxCache.label || '';
@@ -964,8 +1000,14 @@ async function fetchArsRate(force) {
   const now = Date.now();
   if (!force && fxCache.rate && (now - fxCache.ts) < 3600000) return fxCache;
   try {
-    const r = await fetch('https://dolarapi.com/v1/dolares');
-    const d = await r.json();
+    // Payload crudo de dolarapi.com compartido con Taxfly: si Taxfly ya
+    // lo pidió hace menos de 1h, lo reusamos en vez de pegarle de nuevo.
+    let d = sharedCacheGet(SHARED_FX_KEY, 3600000);
+    if (!d) {
+      const r = await fetch('https://dolarapi.com/v1/dolares');
+      d = await r.json();
+      sharedCacheSet(SHARED_FX_KEY, d);
+    }
     const oficial = d.find(x => x.casa === 'oficial');
     const tarjeta = d.find(x => x.casa === 'tarjeta');
     const pick = oficial || tarjeta;
@@ -1210,6 +1252,23 @@ function renderBudgetBox() {
     ${addForm}`;
 }
 window.renderBudgetBox = renderBudgetBox;
+
+// ─── Unificación con TaxUSA/Taxfly ─────────────────────────────
+// TaxUSA lee este mismo doc 'budget' (sin auth, solo lectura de su lado)
+// para sumar lo gastado en Maps a su propio total de "Total gastado" /
+// "Presupuesto restante". Para que ese número esté siempre al día, cada
+// vez que cambia el carrito de Walmart mandamos el total actual como un
+// campo aparte (merge:true no pisa el presupuesto ni los gastos
+// manuales que ya viven en este mismo doc). Con debounce para no
+// escribir en cada tecla si el usuario edita rápido.
+let _wmSpentSyncTimer = null;
+function syncWalmartSpentForTaxfly() {
+  clearTimeout(_wmSpentSyncTimer);
+  _wmSpentSyncTimer = setTimeout(() => {
+    const spent = wmTotalChecked();
+    window._fb && window._fb.fbSet('budget', { walmartSpent: spent });
+  }, 800);
+}
 
 
 
@@ -1575,6 +1634,7 @@ function renderWalmart() {
     </div>`;
   html += '</div>';
   panel.innerHTML = html;
+  syncWalmartSpentForTaxfly();
 }
 
 // Update switchSection to handle 3 main sections

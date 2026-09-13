@@ -3,10 +3,14 @@
 <head>
 <script>
 (function() {
-  var choice = 'auto';
-  try { choice = localStorage.getItem('theme-choice') || 'auto'; } catch(e) {}
-  if (choice === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-  else if (choice === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark');
+  // Key 'theme' compartida con TaxUSA/Taxfly (mismo dominio, mismo
+  // localStorage) — elegís el tema en cualquiera de las dos apps y te
+  // acompaña en la otra. Mismo patrón exacto que usa Taxfly en sus
+  // páginas, para que el valor se interprete igual de los dos lados.
+  var _t = null;
+  try { _t = localStorage.getItem('theme'); } catch(e) {}
+  if (_t) document.documentElement.setAttribute('data-theme', _t);
+  else if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark');
 })();
 // Flag de debug: por defecto apagado en producción. Para activarlo, correr
 // en la consola del navegador: localStorage.setItem('debug','1') y recargar.
