@@ -2185,6 +2185,20 @@ async function geoNominatimAddress(address) {
 }
 function geoSleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Búsqueda automática combinada: Wikipedia primero (más precisa cuando la
+// atracción tiene artículo propio), y si no encuentra nada, Nominatim como
+// respaldo buscando "nombre + parque" como si fuera una dirección. Así el
+// usuario no tiene que elegir método — un solo botón prueba las dos.
+async function geoAutoSearch(name, parkHint) {
+  const wiki = await geoWikipediaCoords(name, parkHint);
+  if (wiki) return { lat: wiki.lat, lng: wiki.lng, source: 'wikipedia', title: wiki.title };
+  await geoSleep(250);
+  const query = parkHint ? `${name}, ${parkHint}` : name;
+  const nomi = await geoNominatimAddress(query);
+  if (nomi) return { lat: nomi.lat, lng: nomi.lng, source: 'nominatim' };
+  return null;
+}
+
 const PARKS_DATA = [
   {
     id: 'mk', name: 'Magic Kingdom', emoji: '🏰', label: 'Walt Disney World', cls: 'pk-mk',
@@ -2980,11 +2994,11 @@ async function pkAttrLocSearchAuto() {
   if (!name) { statusEl.textContent = 'Escribí primero el nombre de la atracción.'; return; }
   const park = allParksList().find(p => p.id === pkAddAttrParkId);
   statusEl.textContent = 'Buscando en Wikipedia…';
-  const result = await geoWikipediaCoords(name, park && park.name);
-  if (!result) { statusEl.textContent = 'No encontré coordenadas — probá con una dirección o cargalas a mano.'; return; }
+  const result = await geoAutoSearch(name, park && park.name);
+  if (!result) { statusEl.textContent = 'No encontré esta atracción ni en Wikipedia ni por dirección — probá con una dirección manual o cargá las coordenadas a mano.'; return; }
   document.getElementById('pk-attr-add-lat').value = result.lat.toFixed(6);
   document.getElementById('pk-attr-add-lng').value = result.lng.toFixed(6);
-  statusEl.textContent = `Encontrado en "${result.title}".`;
+  statusEl.textContent = result.source === 'wikipedia' ? `Encontrado en "${result.title}".` : 'Encontrado por dirección aproximada — revisalo bien.';
 }
 async function pkAttrLocSearchAddress() {
   const address = document.getElementById('pk-attr-add-address').value.trim();
@@ -3247,14 +3261,16 @@ async function pkLocSearchAuto() {
   const attr = park.zones[pkLocTarget.zoneIdx].attractions[pkLocTarget.attrIdx];
   const statusEl = document.getElementById('pk-loc-status');
   statusEl.textContent = 'Buscando en Wikipedia…';
-  const result = await geoWikipediaCoords(attr.name, park.name);
+  const result = await geoAutoSearch(attr.name, park.name);
   if (!result) {
-    statusEl.textContent = 'No encontré coordenadas en Wikipedia para esta atracción — probá con la dirección o cargalas a mano.';
+    statusEl.textContent = 'No encontré esta atracción ni en Wikipedia ni por dirección — probá escribiendo una dirección más específica o cargá las coordenadas a mano.';
     return;
   }
   document.getElementById('pk-loc-lat').value = result.lat.toFixed(6);
   document.getElementById('pk-loc-lng').value = result.lng.toFixed(6);
-  statusEl.textContent = `Encontrado en el artículo "${result.title}" — revisá el pin y guardá si está bien.`;
+  statusEl.textContent = result.source === 'wikipedia'
+    ? `Encontrado en el artículo "${result.title}" — revisá el pin y guardá si está bien.`
+    : 'Encontrado por dirección aproximada (Wikipedia no tenía esta atracción) — revisá bien el pin antes de guardar.';
 }
 async function pkLocSearchAddress() {
   const address = document.getElementById('pk-loc-address').value.trim();
@@ -3318,7 +3334,7 @@ async function pkVerifyParkCoords(parkId) {
   if (targets.length === 0) return;
 
   const ok = await showConfirm(
-    `Se va a buscar en Wikipedia la ubicación de las ${targets.length} atracciones de "${park.name}", una por una (puede tardar uno o dos minutos). Las que ya corregiste a mano no se tocan.`,
+    `Se va a buscar la ubicación de las ${targets.length} atracciones de "${park.name}" (primero en Wikipedia, y si no aparece, por dirección aproximada). Puede tardar uno o dos minutos. Las que ya corregiste a mano no se tocan.`,
     '¿Verificar coordenadas?', 'Verificar'
   );
   if (!ok) return;
@@ -3329,14 +3345,14 @@ async function pkVerifyParkCoords(parkId) {
   for (const t of targets) {
     const key = `${parkId}_${t.zi}_${t.ai}`;
     if (coordOverrides[key]) { checked++; continue; } // ya corregida a mano, no se toca
-    const result = await geoWikipediaCoords(t.attr.name, park.name);
+    const result = await geoAutoSearch(t.attr.name, park.name);
     if (result) {
       pkSaveCoord(parkId, t.zi, t.ai, result.lat, result.lng);
       found++;
     }
     checked++;
     if (btn) btn.textContent = `Verificando ${checked}/${targets.length}…`;
-    await geoSleep(400); // ser prudente con la API pública de Wikipedia
+    await geoSleep(500); // ser prudente con las APIs públicas (Wikipedia + Nominatim)
   }
 
   if (btn) { btn.disabled = false; btn.innerHTML = ic('pin', 12) + ' Verificar coordenadas'; }
