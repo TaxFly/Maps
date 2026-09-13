@@ -1572,21 +1572,9 @@ function shopSave() {
 function shopLoad() {
   const fbValue = (window._shopFromFb && window._shopFromFb.items) ? window._shopFromFb : undefined;
   const d = syncedLoad(SHOPPING_KEY, fbValue);
-  shopItems = d?.items || getDefaultShopItems();
+  shopItems = d?.items || [];
   shopChecked = new Set(d?.checked || []);
 }
-function getDefaultShopItems() {
-  return [
-    { id:'si1', catId:'remeras', name:'Remeras básicas (pack)', size:'M', store:'Ross / Burlington', priority:'alta', needIt:true },
-    { id:'si2', catId:'remeras', name:'Remera Nike Dri-FIT', size:'M', store:'Nike Clearance', priority:'alta', needIt:true },
-    { id:'si3', catId:'pantalones', name:'Jean Levi\'s slim', size:'32x30', store:'Vineland Outlets', priority:'media', needIt:true },
-    { id:'si4', catId:'ropa-deportiva', name:'Short deportivo', size:'M', store:'Nike / Ross', priority:'media', needIt:true },
-    { id:'si5', catId:'calzado', name:'Zapatillas running Nike', size:'42', store:'Nike Clearance', priority:'alta', needIt:true },
-    { id:'si6', catId:'accesorios', name:'Mochila / Backpack', size:'—', store:'Ross / Burlington', priority:'media', needIt:true },
-    { id:'si7', catId:'varios', name:'Medias (pack)', size:'único', store:'Five Below', priority:'baja', needIt:true },
-  ];
-}
-
 function shopGetItem(id) { return shopItems.find(i => i.id === id); }
 
 let _outletsFirstRender = true;
