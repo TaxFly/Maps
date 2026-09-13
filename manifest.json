@@ -11,5 +11,21 @@
   "icons": [
     { "src": "favicon.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
     { "src": "apple-touch-icon.png", "sizes": "128x128", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Supermercado",
+      "short_name": "Walmart",
+      "description": "Ir directo a la lista de compras del supermercado",
+      "url": "./index.html?section=walmart",
+      "icons": [{ "src": "favicon.png", "sizes": "128x128", "type": "image/png" }]
+    },
+    {
+      "name": "Parques",
+      "short_name": "Parques",
+      "description": "Ir directo al tracker de atracciones de los parques",
+      "url": "./index.html?section=parques",
+      "icons": [{ "src": "favicon.png", "sizes": "128x128", "type": "image/png" }]
+    }
   ]
 }

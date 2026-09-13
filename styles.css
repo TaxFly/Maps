@@ -1508,3 +1508,16 @@ body.theme-parques .global-counter { color: #8b5cf6; border-color: rgba(139,92,2
   transition: all .15s;
 }
 .budget-add-cat-btn:hover { border-style: solid; border-color: var(--theme-accent); color: var(--theme-accent); }
+
+/* ═══════ CLIMA por día (badge en las pestañas de Outlets) ═══════ */
+.odt-weather { margin-left: 5px; font-size: 9px; font-weight: 700; white-space: nowrap; }
+
+/* ═══════ GUÍA DE TALLES US ↔ ARG ═══════ */
+.size-guide-block { margin-bottom: 16px; }
+.size-guide-title { font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.size-guide-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.size-guide-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.size-guide-table th, .size-guide-table td { padding: 7px 10px; text-align: center; white-space: nowrap; }
+.size-guide-table th { background: var(--surface2); color: var(--muted); font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: .3px; }
+.size-guide-table td { border-top: 1px solid var(--border); color: var(--text); }
+.size-guide-table tr:nth-child(even) td { background: color-mix(in srgb, var(--surface2) 55%, transparent); }

@@ -452,6 +452,7 @@ window._appInit = function() {
   updateGlobal();
   renderTodayCard();
   loadArsRate();
+  loadWeatherForecast();
   // Expose globals for realtime listeners
   window.visited = visited;
   window.days = days;
@@ -466,6 +467,14 @@ window._appInit = function() {
   window._appInited = true;
   // Patch fbSet to show sync dot feedback
   patchFbSyncDot();
+
+  // Shortcuts del manifest (mantener presionado el ícono de la app):
+  // abren directo en la sección pedida (ej. ?section=walmart).
+  try {
+    const params = new URLSearchParams(location.search);
+    const sec = params.get('section');
+    if (sec && ['outlets','comidas','walmart','parques'].includes(sec)) switchSection(sec);
+  } catch(e) {}
 };
 
 // If Firebase already ready (unlikely but safe), init now
@@ -872,16 +881,25 @@ const WI = {
   95:'⛈️',96:'⛈️',99:'🌪️'
 };
 let weatherCache = localLoad(WEATHER_KEY) || { data: null, ts: 0 };
+let _cityGeo = null;
+async function geocodeWeatherCity() {
+  if (_cityGeo) return _cityGeo;
+  try {
+    const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(WEATHER_CITY) + '&count=1&language=es&format=json');
+    const geoData = await geoRes.json();
+    if (!geoData.results || !geoData.results.length) return null;
+    _cityGeo = { latitude: geoData.results[0].latitude, longitude: geoData.results[0].longitude };
+    return _cityGeo;
+  } catch(e) { devError('geocode error', e); return null; }
+}
 
 async function fetchWeatherForToday(force) {
   const now = Date.now();
   if (!force && weatherCache.data && (now - weatherCache.ts) < 1800000) return weatherCache.data;
   try {
-    const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(WEATHER_CITY) + '&count=1&language=es&format=json');
-    const geoData = await geoRes.json();
-    if (!geoData.results || !geoData.results.length) return weatherCache.data || null;
-    const { latitude, longitude } = geoData.results[0];
-    const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude +
+    const geo = await geocodeWeatherCity();
+    if (!geo) return weatherCache.data || null;
+    const wRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + geo.latitude + '&longitude=' + geo.longitude +
       '&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto');
     const wData = await wRes.json();
     const c = wData.current;
@@ -890,6 +908,47 @@ async function fetchWeatherForToday(force) {
     try { localStorage.setItem(WEATHER_KEY, JSON.stringify(weatherCache)); } catch(e) {}
     return result;
   } catch(e) { devError('weather fetch error', e); return weatherCache.data || null; }
+}
+
+// Pronóstico extendido (hasta 16 días, límite gratis de Open-Meteo): para
+// que cada pestaña de día del cronograma de Outlets muestre qué clima
+// espera, y ayude a decidir qué día conviene para exteriores.
+const FORECAST_KEY = 'orlando-forecast-cache-v1';
+let weatherForecast = localLoad(FORECAST_KEY) || { data: null, ts: 0 };
+async function fetchWeatherForecast(force) {
+  const now = Date.now();
+  if (!force && weatherForecast.data && (now - weatherForecast.ts) < 3 * 3600000) return weatherForecast.data;
+  try {
+    const geo = await geocodeWeatherCity();
+    if (!geo) return weatherForecast.data || null;
+    const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + geo.latitude + '&longitude=' + geo.longitude +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto&forecast_days=16');
+    const data = await res.json();
+    const daily = data.daily || {};
+    const days = (daily.time || []).map((date, i) => ({
+      date,
+      code: daily.weather_code[i],
+      tmaxF: Math.round(daily.temperature_2m_max[i]),
+      tminF: Math.round(daily.temperature_2m_min[i]),
+    }));
+    weatherForecast = { data: days, ts: now };
+    try { localStorage.setItem(FORECAST_KEY, JSON.stringify(weatherForecast)); } catch(e) {}
+    return days;
+  } catch(e) { devError('forecast fetch error', e); return weatherForecast.data || null; }
+}
+// Busca, dentro del pronóstico ya bajado, el día cuyo mes/día calendario
+// coincide con una fecha del cronograma (ej. "Lun 25/01" o "25 ene").
+function forecastForTripDate(dateStr) {
+  const p = parseTripDayDate(dateStr);
+  if (!p || !weatherForecast.data) return null;
+  return weatherForecast.data.find(f => {
+    const d = new Date(f.date + 'T00:00:00');
+    return d.getDate() === p.d && (d.getMonth() + 1) === p.mo;
+  }) || null;
+}
+async function loadWeatherForecast(force) {
+  await fetchWeatherForecast(force);
+  if (document.getElementById('panel-outlets')?.classList.contains('active')) renderOutlets();
 }
 
 // ─── COTIZACIÓN USD → ARS (dolarapi.com) ──────────────────────
@@ -1128,6 +1187,9 @@ window.addEventListener('DOMContentLoaded', function(){
   });
   document.getElementById('hotelEditModal').addEventListener('click', function(e){
     if(e.target===this) closeHotelEdit();
+  });
+  document.getElementById('sizeGuideModal').addEventListener('click', function(e){
+    if(e.target===this) closeSizeGuide();
   });
   // Pintar Outlets con los datos locales de entrada, sin esperar a Firebase
   // (antes solo se renderizaba cuando llegaba la respuesta de Firebase).
@@ -1589,7 +1651,11 @@ function renderOutlets() {
       </div>`;
     } else {
       html += `<div class="outlets-day-tabs">
-        ${days.map((d,i) => `<button class="outlets-day-tab${i===currentDay?' active':''}" onclick="switchOutletDay(${i})">${escapeHtml(d.dayName || ('Día ' + (i+1)))}<span class="odt-date">${escapeHtml(d.date || '')}</span></button>`).join('')}
+        ${days.map((d,i) => {
+          const fc = forecastForTripDate(d.date);
+          const wBadge = fc ? `<span class="odt-weather" title="${escapeHtml(WMO[fc.code]||'')} · mín ${fc.tminF}°F">${WI[fc.code]||'🌡️'} ${fc.tmaxF}°</span>` : '';
+          return `<button class="outlets-day-tab${i===currentDay?' active':''}" onclick="switchOutletDay(${i})">${escapeHtml(d.dayName || ('Día ' + (i+1)))}<span class="odt-date">${escapeHtml(d.date || '')}${wBadge}</span></button>`;
+        }).join('')}
         <button class="btn-nav-set" style="margin-left:2px" onclick="openOutletDayModal()" title="Agregar día">+</button>
       </div>`;
       html += `<div class="outlets-day-content">`;
@@ -1832,10 +1898,12 @@ function renderDayContent(d) {
   // ─── MAP ───────────────────────────────────────────────────
   const stopsWithCoords = day.stops.filter(s => s.lat && s.lng);
   if (stopsWithCoords.length > 0) {
+    const canOptimize = stopsWithCoords.length === day.stops.length && stopsWithCoords.length >= 3;
     html += `
       <div class="day-map-wrap" style="margin-top:14px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);">
-        <div class="day-map-header" style="display:flex;align-items:center;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);">
+        <div class="day-map-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);">
           <div class="day-map-title">${ic('map',13)} Mapa del día · ${stopsWithCoords.length} paradas</div>
+          ${canOptimize ? `<button class="mbtn" id="optimize-btn-${d}" onclick="optimizeDayOrder(${d})" title="Reordena las paradas para viajar menos entre ellas">↻ Optimizar orden</button>` : ''}
         </div>
         ${stopsWithCoords.length > 1 ? `<div class="day-route-info" id="day-route-info-${d}">Calculando ruta…</div>` : ''}
         <div id="day-map-container-${d}" class="day-map-container"></div>
@@ -1885,6 +1953,45 @@ async function fetchRouteInfo(d, stopsWithCoords) {
     _routeCache[key] = data.routes[0];
     applyRouteInfo(d, data.routes[0]);
   } catch(e) { devError('route fetch error', e); if (infoEl) infoEl.textContent = ''; }
+}
+
+// Reordena las paradas del día para minimizar el tiempo de viaje total,
+// usando el endpoint /trip de OSRM (el mismo servidor demo que ya usa el
+// ruteo). Se fija la primera parada como punto de partida (source=first)
+// y se deja libre el resto del orden. Solo disponible si TODAS las
+// paradas del día tienen coordenadas cargadas.
+async function optimizeDayOrder(d) {
+  const day = days[d];
+  const stopsWithCoords = day.stops.filter(s => s.lat && s.lng);
+  if (stopsWithCoords.length !== day.stops.length || stopsWithCoords.length < 3) return;
+  const btn = document.getElementById('optimize-btn-' + d);
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Optimizando…'; }
+  try {
+    const coordsStr = day.stops.map(s => s.lng + ',' + s.lat).join(';');
+    const res = await fetch(`https://router.project-osrm.org/trip/v1/driving/${coordsStr}?source=first&roundtrip=false`);
+    const data = await res.json();
+    if (!data.waypoints || !data.trips || !data.trips.length) { showMToast('No se pudo optimizar la ruta'); return; }
+    const order = data.waypoints
+      .map((wp, originalIdx) => ({ originalIdx, seq: wp.waypoint_index }))
+      .sort((a, b) => a.seq - b.seq)
+      .map(x => x.originalIdx);
+    // Remapear qué paradas estaban visitadas al nuevo orden, para no
+    // "desmarcar" nada solo por haber reordenado la lista.
+    const oldVisited = visited[d];
+    const newVisited = new Set();
+    order.forEach((oldIdx, newIdx) => { if (oldVisited.has(oldIdx)) newVisited.add(newIdx); });
+    day.stops = order.map(i => day.stops[i]);
+    visited[d] = newVisited;
+    _routeCache = {}; // el orden cambió: invalidar la ruta cacheada
+    saveState();
+    showMToast('Orden optimizado ✓ — se acomodaron las paradas para viajar menos');
+    renderOutlets();
+  } catch(e) {
+    devError('trip optimize error', e);
+    showMToast('No se pudo optimizar la ruta (sin conexión a OSRM)');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Optimizar orden'; }
+  }
 }
 
 // ─── MAP LOGIC ──────────────────────────────────────────────
@@ -2144,12 +2251,49 @@ function stopDrop(dayIdx, stopIdx, e) {
   showMToast('Parada reordenada ✓');
 }
 
+// ─── GUÍA DE TALLES US ↔ ARG (Outlets · Compras) ───────────────
+// Tabla estática de referencia — aproximada, puede variar por marca.
+const SIZE_GUIDE = [
+  { title: 'Remeras / Buzos', cols: ['US', 'ARG'], rows: [
+    ['XS','38-40'], ['S','40-42'], ['M','42-44'], ['L','44-46'], ['XL','46-48'], ['XXL','48-50'],
+  ]},
+  { title: 'Pantalones (jean, hombre — cintura)', cols: ['US', 'ARG'], rows: [
+    ['28','38'], ['30','40'], ['32','42'], ['34','44'], ['36','46'], ['38','48'],
+  ]},
+  { title: 'Calzado (unisex, aprox.)', cols: ['US', 'ARG / EU'], rows: [
+    ['6','37'], ['6.5','37.5'], ['7','38'], ['7.5','39'], ['8','39.5'], ['8.5','40'],
+    ['9','41'], ['9.5','41.5'], ['10','42'], ['10.5','43'], ['11','43.5'], ['11.5','44'], ['12','45'],
+  ]},
+];
+function renderSizeGuide() {
+  return SIZE_GUIDE.map(g => `
+    <div class="size-guide-block">
+      <div class="size-guide-title">${g.title}</div>
+      <div class="size-guide-table-wrap">
+        <table class="size-guide-table">
+          <thead><tr>${g.cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+          <tbody>${g.rows.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`).join('');
+}
+function openSizeGuide() {
+  document.getElementById('size-guide-content').innerHTML = renderSizeGuide();
+  document.getElementById('sizeGuideModal').classList.add('open');
+}
+function closeSizeGuide() {
+  document.getElementById('sizeGuideModal').classList.remove('open');
+}
+
 function renderShopList() {
   const prioColor = { alta:'#ef4444', media:'var(--accent)', baja:'var(--green)' };
   const isNeed = shopListTab === 'need';
   const filtered = shopItems.filter(i => isNeed ? i.needIt !== false : i.needIt === false);
 
   let html = `
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <button class="mbtn" onclick="openSizeGuide()">${ic('shirt',12)} Guía de talles US↔ARG</button>
+  </div>
   <div style="display:flex;gap:6px;margin-bottom:14px">
     <button onclick="shopListTab='need';renderOutlets()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${isNeed?'var(--accent)':'var(--border2)'};background:${isNeed?'var(--accent)':'transparent'};color:${isNeed?'#fff':'var(--muted)'};font-family:'DM Sans',sans-serif;font-size:var(--fs-xs);font-weight:600;cursor:pointer;">${ic('check',13)} A comprar</button>
     <button onclick="shopListTab='noneed';renderOutlets()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${!isNeed?'#ef4444':'var(--border2)'};background:${!isNeed?'rgba(239,68,68,0.12)':'transparent'};color:${!isNeed?'#ef4444':'var(--muted)'};font-family:'DM Sans',sans-serif;font-size:var(--fs-xs);font-weight:600;cursor:pointer;">${ic('x',13)} No necesito</button>
