@@ -272,10 +272,11 @@ function packingAddItem() {
 }
 
 // Incrementar este número cada vez que se corrijan coordenadas o paradas
-const DAYS_VERSION = 2;
+const DAYS_VERSION = 3;
 
 const days = [
   {
+    dayName: "Día 1", date: "Lun 25/01",
     label: "Zona Kissimmee Este — The Loop & Osceola Pkwy.",
     stops: [
       {name:"The Loop Kissimmee", desc:"Centro comercial con varios locales. Dentro de este hay: Five Below · Ross Dress for Less · Burlington · JCPenney. Horario: 10 a.m.–9:30 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3442,-81.4244", lat:28.3442, lng:-81.4244},
@@ -287,6 +288,7 @@ const days = [
     ]
   },
   {
+    dayName: "Día 2", date: "Mar 26/01",
     label: "Zona Vineland & Regency Village — muy cerca del alojamiento. Ver si no alcanzó algo el día anterior",
     stops: [
       {name:"Marshalls / Target / Dollar General", desc:"Horario: 9:30 a.m.–9:30 p.m. / Horario: 8 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3325731,-81.4738182", lat:28.3325731, lng:-81.4738182},
@@ -298,6 +300,7 @@ const days = [
     ]
   },
   {
+    dayName: "Día 3", date: "Mié 27/01",
     label: "Zona Orlando Norte — Int'l Drive, Turkey Lake, Florida Mall.",
     stops: [
       {name:"Orlando International Premium Outlets", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4746714,-81.4515288", badge:"star", badgeText:"⭐ imperdible", lat:28.4746714, lng:-81.4515288},
@@ -1289,8 +1292,6 @@ let _outletsFirstRender = true;
 function renderOutlets() {
   // shopLoad() removido de acá — solo se carga al init para no pisar cambios en memoria
   const panel = document.getElementById('panel-outlets');
-  const dayLabels = ['Lun 25/01','Mar 26/01','Mié 27/01'];
-  const dayNames = ['Día 1','Día 2','Día 3'];
 
   let html = `<div class="outlets-panel">
     <div class="outlets-subtabs">
@@ -1300,14 +1301,25 @@ function renderOutlets() {
     </div>`;
 
   if (outletSubTab === 'cronograma') {
-    // Day sub-tabs
     const currentDay = typeof currentOutletDay !== 'undefined' ? currentOutletDay : 0;
-    html += `<div class="outlets-day-tabs">
-      ${dayNames.map((n,i) => `<button class="outlets-day-tab${i===currentDay?' active':''}" onclick="switchOutletDay(${i})">${n}<span class="odt-date">${dayLabels[i]}</span></button>`).join('')}
-    </div>`;
-    html += `<div class="outlets-day-content">`;
-    html += renderDayContent(currentDay);
-    html += `</div>`;
+    if (days.length === 0) {
+      html += `<div class="all-done" style="display:block">
+        <div class="all-done-emoji">${ic('calendar',44)}</div>
+        <div class="all-done-title">Sin días cargados</div>
+        <div class="all-done-sub">Agregá el primer día del cronograma para empezar.</div>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:14px">
+        <button class="wm-reset-btn" onclick="openOutletDayModal()">+ Agregar día</button>
+      </div>`;
+    } else {
+      html += `<div class="outlets-day-tabs">
+        ${days.map((d,i) => `<button class="outlets-day-tab${i===currentDay?' active':''}" onclick="switchOutletDay(${i})">${escapeHtml(d.dayName || ('Día ' + (i+1)))}<span class="odt-date">${escapeHtml(d.date || '')}</span></button>`).join('')}
+        <button class="btn-nav-set" style="margin-left:2px" onclick="openOutletDayModal()" title="Agregar día">+</button>
+      </div>`;
+      html += `<div class="outlets-day-content">`;
+      html += renderDayContent(currentDay);
+      html += `</div>`;
+    }
   } else if (outletSubTab === 'valija') {
     html += renderPacking();
   } else {
@@ -1319,7 +1331,7 @@ function renderOutlets() {
   panel.innerHTML = html;
 
   // Init map after DOM is ready
-  if (outletSubTab === 'cronograma') {
+  if (outletSubTab === 'cronograma' && days.length > 0) {
     const currentDay = typeof currentOutletDay !== 'undefined' ? currentOutletDay : 0;
     setTimeout(() => initDayMap(currentDay), 100);
   }
@@ -1343,6 +1355,57 @@ function switchOutletTab(tab) {
 function switchOutletDay(d) {
   currentOutletDay = d;
   renderOutlets();
+}
+
+function openOutletDayModal() {
+  ['outlet-day-date','outlet-day-name','outlet-day-label'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+    el.classList.remove('error');
+    const err = document.getElementById(id + '-err');
+    if (err) err.classList.remove('show');
+  });
+  document.getElementById('outlet-day-name').value = 'Día ' + (days.length + 1);
+  document.getElementById('outletDayModal').classList.add('open');
+}
+function closeOutletDayModal() {
+  document.getElementById('outletDayModal').classList.remove('open');
+}
+function addOutletDay() {
+  const dateEl = document.getElementById('outlet-day-date');
+  const date = dateEl.value.trim();
+  if (!date) {
+    dateEl.classList.add('error');
+    document.getElementById('outlet-day-date-err').classList.add('show');
+    return;
+  }
+  const dayName = document.getElementById('outlet-day-name').value.trim() || ('Día ' + (days.length + 1));
+  const label = document.getElementById('outlet-day-label').value.trim() || 'Sin descripción todavía';
+  days.push({ dayName, date, label, stops: [] });
+  visited.push(new Set());
+  currentOutletDay = days.length - 1;
+  saveState();
+  closeOutletDayModal();
+  renderOutlets();
+  updateGlobal();
+  showMToast('Día agregado');
+}
+function outletDeleteDay(idx) {
+  if (days.length <= 1) return;
+  const [removedDay] = days.splice(idx, 1);
+  const [removedVisited] = visited.splice(idx, 1);
+  if (currentOutletDay >= days.length) currentOutletDay = days.length - 1;
+  saveState();
+  renderOutlets();
+  updateGlobal();
+  showUndoToast(`Día "${removedDay.dayName || removedDay.date}" eliminado`, () => {
+    days.splice(idx, 0, removedDay);
+    visited.splice(idx, 0, removedVisited);
+    currentOutletDay = idx;
+    saveState();
+    renderOutlets();
+    updateGlobal();
+  });
 }
 
 function renderDayContent(d) {
@@ -1500,6 +1563,10 @@ function renderDayContent(d) {
         </div>
         <div id="day-map-container-${d}" class="day-map-container"></div>
       </div>`;
+  }
+
+  if (days.length > 1) {
+    html += `<div class="del-day-row"><button class="mbtn mdel" onclick="outletDeleteDay(${d})">Eliminar este día</button></div>`;
   }
 
   return html;
@@ -2896,4 +2963,146 @@ function pkDeleteAttraction(parkId, zoneIdx, attrIdx, e) {
     if (isCustom) customParksSave(); else extraZonesSave();
     renderParques();
   });
+}
+
+// ─── EXPORTAR / IMPORTAR TODO (backup en JSON) ────────────────────
+function exportAllData() {
+  const payload = {
+    _app: 'orlando-planning',
+    _exportedAt: new Date().toISOString(),
+    hotel,
+    days,
+    visited: visited.map(s => [...s]),
+    mealData,
+    wmData,
+    wmChecked: [...wmChecked],
+    shopItems,
+    shopChecked: [...shopChecked],
+    packingItems,
+    packingChecked: [...packingChecked],
+    customParks,
+    extraZones,
+    parquesState,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `orlando-planning-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showMToast('Backup descargado');
+}
+
+async function importAllData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    let data;
+    try { data = JSON.parse(reader.result); }
+    catch (e) {
+      await showAlert('El archivo no es un JSON válido.');
+      event.target.value = '';
+      return;
+    }
+    const ok = await showConfirm(
+      data._app === 'orlando-planning'
+        ? 'Se van a reemplazar TODOS los datos actuales (outlets, comidas, market, parques) por los del archivo.'
+        : 'Este archivo no parece un backup de esta app, pero se puede intentar igual. Se van a reemplazar TODOS los datos actuales.',
+      '¿Importar backup?', 'Importar', true
+    );
+    if (!ok) { event.target.value = ''; return; }
+
+    if (data.hotel) Object.assign(hotel, data.hotel);
+    if (data.days) { days.length = 0; data.days.forEach(d => days.push(d)); }
+    if (data.visited) { visited.length = 0; data.visited.forEach(arr => visited.push(new Set(arr))); }
+    if (data.mealData) mealData = data.mealData;
+    if (data.wmData) wmData = data.wmData;
+    if (data.wmChecked) { wmChecked.clear(); data.wmChecked.forEach(k => wmChecked.add(k)); }
+    if (data.shopItems) shopItems = data.shopItems;
+    if (data.shopChecked) { shopChecked.clear(); data.shopChecked.forEach(k => shopChecked.add(k)); }
+    if (data.packingItems) packingItems = data.packingItems;
+    if (data.packingChecked) { packingChecked.clear(); data.packingChecked.forEach(k => packingChecked.add(k)); }
+    // Limpiar zonas "agregadas a mano" viejas antes de reaplicar, para no duplicarlas
+    PARKS_DATA.forEach(p => { p.zones = p.zones.filter(z => !z._extra); });
+    if (data.customParks) {
+      customParks = data.customParks;
+      customParks.forEach(p => { if (p.color) PARK_COLORS[p.id] = p.color; });
+    }
+    if (data.extraZones) {
+      extraZones = data.extraZones;
+      Object.keys(extraZones).forEach(parkId => {
+        const park = PARKS_DATA.find(p => p.id === parkId);
+        const zone = extraZones[parkId];
+        if (park && zone && zone.attractions) park.zones.push(zone);
+      });
+    }
+    if (data.parquesState) parquesState = data.parquesState;
+
+    hotelSave(); saveState(); mealSave(); wmSave(); shopSave(); packingSave();
+    customParksSave(); extraZonesSave(); parquesSave();
+
+    currentOutletDay = 0;
+    closeSettingsDrawer();
+    switchSection('outlets');
+    showMToast('Datos importados');
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ─── VACIAR TODO POR SECCIÓN (para arrancar un viaje distinto) ────
+async function wipeSection(section) {
+  if (section === 'outlets') return wipeOutlets();
+  if (section === 'comidas') return wipeComidas();
+  if (section === 'walmart') return wipeWalmart();
+  if (section === 'parques') return wipeParques();
+}
+async function wipeOutlets() {
+  const ok = await showConfirm('Se van a borrar TODOS los días y paradas del cronograma de Outlets (la lista de compras y la valija no se tocan).', '¿Vaciar cronograma?', 'Vaciar', true);
+  if (!ok) return;
+  days.length = 0;
+  visited.length = 0;
+  currentOutletDay = 0;
+  saveState();
+  closeSettingsDrawer();
+  switchSection('outlets');
+  showMToast('Cronograma vaciado');
+}
+async function wipeComidas() {
+  const ok = await showConfirm('Se van a borrar TODOS los días del plan de comidas.', '¿Vaciar Comidas?', 'Vaciar', true);
+  if (!ok) return;
+  mealData = [];
+  mealSave();
+  closeSettingsDrawer();
+  switchSection('comidas');
+  showMToast('Comidas vaciado');
+}
+async function wipeWalmart() {
+  const ok = await showConfirm('Se van a borrar TODOS los productos de la lista de Market (las categorías quedan, para agregar productos nuevos).', '¿Vaciar Market?', 'Vaciar', true);
+  if (!ok) return;
+  wmData.forEach(cat => { cat.items = []; });
+  wmChecked.clear();
+  wmSave();
+  closeSettingsDrawer();
+  switchSection('walmart');
+  showMToast('Market vaciado');
+}
+async function wipeParques() {
+  const ok = await showConfirm('Se van a borrar todos los parques personalizados, las atracciones agregadas a mano en cualquier parque, y todo el progreso marcado.', '¿Vaciar Parques?', 'Vaciar', true);
+  if (!ok) return;
+  customParks = [];
+  extraZones = {};
+  PARKS_DATA.forEach(p => { p.zones = p.zones.filter(z => !z._extra); });
+  parquesState = {};
+  pkFilter = 'all';
+  customParksSave();
+  extraZonesSave();
+  parquesSave();
+  closeSettingsDrawer();
+  switchSection('parques');
+  showMToast('Parques vaciado');
 }

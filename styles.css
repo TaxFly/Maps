@@ -242,6 +242,16 @@ body {
   font-weight: 700; cursor: pointer; transition: var(--tr);
 }
 .drawer-close-btn:hover { border-color: var(--theme-accent); }
+.drawer-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.drawer-action-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); padding: 10px 12px; font-family: 'DM Sans', sans-serif;
+  font-size: var(--fs-xs); font-weight: 600; cursor: pointer; transition: var(--tr); text-align: left;
+}
+.drawer-action-btn:hover { border-color: var(--theme-accent); }
+.drawer-action-btn.drawer-danger { color: #ef4444; }
+.drawer-action-btn.drawer-danger:hover { border-color: #ef4444; background: rgba(239,68,68,.08); }
 
 /* PANELS */
 .panel { display: none; padding: 0 16px; }
