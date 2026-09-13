@@ -104,7 +104,7 @@ function syncedLoad(localKey, fbValue) {
 }
 
 const HOTEL_KEY = 'orlando-hotel-v1';
-let hotel = { addr: "324 Newcastle Dr, Kissimmee FL 34746", url: "https://www.google.com/maps/search/?api=1&query=28.3223251,-81.4939467" };
+let hotel = { addr: "", url: "#" };
 function hotelLoad() {
   const d = syncedLoad(HOTEL_KEY, window._hotelFromFb);
   if (d) hotel = d;
@@ -287,46 +287,7 @@ function packingAddItem() {
 // Incrementar este número cada vez que se corrijan coordenadas o paradas
 const DAYS_VERSION = 3;
 
-const days = [
-  {
-    dayName: "Día 1", date: "Lun 25/01",
-    label: "Zona Kissimmee Este — The Loop & Osceola Pkwy.",
-    stops: [
-      {name:"The Loop Kissimmee", desc:"Centro comercial con varios locales. Dentro de este hay: Five Below · Ross Dress for Less · Burlington · JCPenney. Horario: 10 a.m.–9:30 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3442,-81.4244", lat:28.3442, lng:-81.4244},
-      {name:"Nike Clearance Store", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3441007,-81.4290266", badge:"star", badgeText:"⭐ imperdible", lat:28.3441007, lng:-81.4290266},
-      {name:"T.J. Maxx", desc:"Horario: 9:30 a.m.–9:30 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3425818,-81.4302695", lat:28.3425818, lng:-81.4302695},
-      {name:"Goodwill", desc:"Horario: 9 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3399706,-81.432448", lat:28.3399706, lng:-81.432448},
-      {name:"The Crosslands Shopping Center", desc:"Horario: 8 a.m.–10 p.m. Dentro de este hay: Ross Dress for Less · Dollar Tree · Five Below · Sephora · Academy Sports · Marshalls & HomeGoods.", url:"https://www.google.com/maps/search/?api=1&query=28.3405798,-81.4089169", lat:28.3405798, lng:-81.4089169},
-      {name:"Burlington", desc:"Horario: 9 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3381838,-81.4097627", lat:28.3381838, lng:-81.4097627},
-    ]
-  },
-  {
-    dayName: "Día 2", date: "Mar 26/01",
-    label: "Zona Vineland & Regency Village — muy cerca del alojamiento. Ver si no alcanzó algo el día anterior",
-    stops: [
-      {name:"Marshalls / Target / Dollar General", desc:"Horario: 9:30 a.m.–9:30 p.m. / Horario: 8 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3325731,-81.4738182", lat:28.3325731, lng:-81.4738182},
-      {name:"Ross Dress for Less / Burlington", desc:"Horario: 9 a.m.–10 p.m. / Horario: 9 a.m.–12 a.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3478,-81.4840", lat:28.3478, lng:-81.4840},
-      {name:"Sunset Plaza", desc:"Horario: 9 a.m.–10 p.m. Dentro de este hay: T.J. Maxx · Ross Dress for Less · Five Below.", url:"https://www.google.com/maps/search/?api=1&query=28.346197,-81.482562", lat:28.346197, lng:-81.482562},
-      {name:"Lake Buena Vista Factory Stores - Outlet", desc:"Horario: 10 a.m.–8 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.350379,-81.4873368", lat:28.350379, lng:-81.4873368},
-      {name:"Orlando Vineland Premium Outlets", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.3873,-81.4924", badge:"star", badgeText:"⭐ imperdible", lat:28.3873, lng:-81.4924},
-      {name:"Vineland Pointe", desc:"Horario: 9 a.m.–10 p.m. Dentro de este hay: Ross Dress for Less · Marshalls · Burlington · Five Below · Disney Gift & Toys.", url:"https://www.google.com/maps/search/?api=1&query=28.3930465,-81.4847703", lat:28.3930465, lng:-81.4847703},
-    ]
-  },
-  {
-    dayName: "Día 3", date: "Mié 27/01",
-    label: "Zona Orlando Norte — Int'l Drive, Turkey Lake, Florida Mall.",
-    stops: [
-      {name:"Orlando International Premium Outlets", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4746714,-81.4515288", badge:"star", badgeText:"⭐ imperdible", lat:28.4746714, lng:-81.4515288},
-      {name:"Orlando Outlet Marketplace", desc:"Horario: 10 a.m.–9 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4681384,-81.4521101", lat:28.4681384, lng:-81.4521101},
-      {name:"International Drive Value Center", desc:"Horario: 9 a.m.–11 p.m. Dentro de este hay: Ross Dress for Less · Five Below · Dollar Tree.", url:"https://www.google.com/maps/search/?api=1&query=28.4661039,-81.4524483", lat:28.4661039, lng:-81.4524483},
-      {name:"International Festival", desc:"Horario: 9 a.m.–11 p.m. Dentro de este hay: Five Below · T.J. Maxx · Burlington.", url:"https://www.google.com/maps/search/?api=1&query=28.4612,-81.4600", lat:28.4612, lng:-81.4600},
-      {name:"The Florida Mall", desc:"Horario: 10 a.m.–8 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.445924,-81.3955090", badge:"star", badgeText:"⭐ imperdible", lat:28.445924, lng:-81.3955090},
-      {name:"Ross Dress for Less", desc:"Horario: 9:30 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4521711,-81.3988041", lat:28.4521711, lng:-81.3988041},
-      {name:"Ross Dress for Less / Marshalls / Burlington", desc:"Horario: 9:30 a.m.–11 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4450,-81.4370", lat:28.4450, lng:-81.4370},
-      {name:"Ross Dress for Less", desc:"Horario: 9 a.m.–11:30 p.m.", url:"https://www.google.com/maps/search/?api=1&query=28.4680,-81.4630", lat:28.4680, lng:-81.4630},
-    ]
-  }
-];
+const days = [];
 
 const STORAGE_KEY = 'outlets-orlando-visited-v2';
 const DAYS_KEY = 'outlets-orlando-days-v2';
@@ -505,43 +466,7 @@ function mealLoad() {
 }
 
 window._setMealData = function(d) { mealData = d; };
-let mealData = [
-  { id:1, date:"17 ene", title:"Llegada (5pm)", type:"arrival",
-    meals:["—","—","Delivery o aeropuerto"], snacks:[], notes:"Llegás a las 5pm. No cocinar." },
-  { id:2, date:"18 ene", title:"Walmart + Hotel", type:"walmart",
-    meals:["Lo que traigas del avión","Mac & Cheese Velveeta","Pasta con salsa + parmesano"],
-    snacks:["Ritz","Donettes"], notes:"Ir a Walmart a la mañana temprano." },
-  { id:3, date:"19 ene", title:"Disney", type:"disney",
-    meals:["Waffles EGGO con Nutella + café","Wrap de jamón y queso (Ziploc)","Lasaña Stouffer"],
-    snacks:["Pack Oreo/Ritz","Applesauce pouch","Agua x2"], notes:"" },
-  { id:4, date:"20 ene", title:"Disney", type:"disney",
-    meals:["Corn Flakes con leche + jugo","Sándwich de jamón y queso (Ziploc)","Corn dogs + papas fritas"],
-    snacks:["Chippers","Applesauce pouch","Granola bar"], notes:"" },
-  { id:5, date:"21 ene", title:"Universal", type:"universal",
-    meals:["Sausage Croissant Sandwich + café","Wrap de atún con maíz (Ziploc)","Pizza Rising Crust"],
-    snacks:["Pack variado snacks","Applesauce pouch","Agua x2"], notes:"Butterbeer en Hogsmeade 🍺" },
-  { id:6, date:"22 ene", title:"Disney", type:"disney",
-    meals:["Tostadas con Nutella + jugo","Sándwich de atún con mayo (Ziploc)","Pollo al horno con arroz y maíz"],
-    snacks:["Rice Krispies Treats","Applesauce pouch","Granola bar"], notes:"" },
-  { id:7, date:"23 ene", title:"Universal", type:"universal",
-    meals:["Waffles EGGO + café","Wrap de jamón y queso (Ziploc)","Rice-A-Roni + mozzarella sticks"],
-    snacks:["Pack Oreo/Chips Ahoy","Applesauce pouch","Agua x2"], notes:"" },
-  { id:8, date:"24 ene", title:"Universal", type:"universal",
-    meals:["Corn Flakes + yogurt","Tazón amantes de carne (llevar)","Wraps de pollo con queso y salsa picante"],
-    snacks:["Ritz","Applesauce pouch","Granola bar"], notes:"Loaded Tots en Springfield 🌭" },
-  { id:9, date:"25 ene", title:"Libre — Outlets", type:"free",
-    meals:["Huevos revueltos con bacon + tostadas","Sopa Maggi con cabello de ángel","Hamburguesas caseras con queso y bacon"],
-    snacks:["Chippers"], notes:"" },
-  { id:10, date:"26 ene", title:"Libre — Paseo", type:"free",
-    meals:["Tostadas con Nutella + café","Corned Beef Hash con huevo frito y salsa picante","Pasta con albóndigas y salsa"],
-    snacks:["Donettes","Ritz"], notes:"" },
-  { id:11, date:"27 ene", title:"Libre / Parque extra", type:"free",
-    meals:["Corn Flakes con leche","Sandwichs jamón y queso (paquete)","Chuletas de cerdo con puré y maíz"],
-    snacks:["Granola bar","Applesauce pouch"], notes:"Portable por si van a algún parque." },
-  { id:12, date:"28 ene", title:"Vuelo", type:"arrival",
-    meals:["Tostadas con Nutella + café + Donettes","Wrap rápido con lo que quede","—"],
-    snacks:[], notes:"Liquidar restos. No comprar nada extra." },
-];
+let mealData = [];
 const mealNames = ["Desayuno","Almuerzo","Cena"];
 const typeConf = {
   disney:    { label:"Disney",    cls:"mbadge-disney",    icon:"castle" },
@@ -1340,76 +1265,7 @@ window._setExtraZonesData = function(zones) {
   });
 };
 window._setCoordOverridesData = function(overrides) { coordOverrides = overrides || {}; };
-let wmData = [
-  { id:'pan', items:[
-    { id:'p1', name:'Pan lactal', qty:2, unit:'bolsas', price:2 },
-    { id:'p2', name:'Pan para hamburguesas', qty:1, unit:'paquete', price:2 },
-    { id:'p3', name:'Pan para salchichas', qty:1, unit:'paquete', price:2 },
-    { id:'p4', name:'Tortillas de harina', qty:1, unit:'paquete', price:3 },
-    { id:'p5', name:'Ritz o similares', qty:1, unit:'paquete 330g', price:4 },
-    { id:'p6', name:'Chippers', qty:1, unit:'bolsa 18oz', price:4 },
-    { id:'p7', name:'Pack variado snacks', qty:1, unit:'pack', price:10 },
-    { id:'p8', name:'Donettes Hostess', qty:1, unit:'bolsa 10oz', price:3 },
-    { id:'p9', name:'Rice Krispies Treats', qty:1, unit:'caja 32oz', price:12 },
-    { id:'p10', name:'Granola bars Nature Valley', qty:1, unit:'caja x12', price:4 },
-    { id:'p11', name:'Applesauce pouches GoGo Squeez', qty:1, unit:'pack x12', price:5 },
-    { id:'p12', name:'Nutella', qty:1, unit:'frasco 350g', price:5 },
-  ]},
-  { id:'lacteos', items:[
-    { id:'l1', name:'Huevos grandes', qty:1, unit:'cartón 18 uds', price:3 },
-    { id:'l2', name:'Leche', qty:1, unit:'galón (3.78 lts)', price:4 },
-    { id:'l3', name:'Manteca', qty:1, unit:'paquete 16oz', price:3 },
-    { id:'l4', name:'Yogurt', qty:1, unit:'pote 32oz', price:3 },
-    { id:'l5', name:'Queso feteado', qty:1, unit:'paquete 24oz', price:4 },
-    { id:'l6', name:'Parmesano', qty:1, unit:'paquete 8oz', price:3 },
-  ]},
-  { id:'carnes', items:[
-    { id:'c1', name:'Pechuga de pollo', qty:1, unit:'bandeja 5lb', price:12 },
-    { id:'c2', name:'Chuletas de cerdo', qty:1, unit:'bandeja 1lb', price:6 },
-    { id:'c3', name:'Jamón Great Value', qty:1, unit:'paquete 32oz', price:9 },
-    { id:'c4', name:'Bacon', qty:1, unit:'paquete 1lb', price:5 },
-    { id:'c5', name:'Salchichas Bar S', qty:1, unit:'paquete 12oz', price:1 },
-    { id:'c6', name:'Albóndigas Great Value', qty:1, unit:'bolsa 32oz', price:8 },
-  ]},
-  { id:'secos', items:[
-    { id:'s1', name:'Pasta Rotini', qty:2, unit:'bolsas 16oz', price:2 },
-    { id:'s2', name:'Arroz Great Value', qty:1, unit:'bolsa 32oz', price:2 },
-    { id:'s3', name:'Puré instantáneo', qty:1, unit:'caja 13oz', price:2 },
-    { id:'s4', name:'Salsa de pasta', qty:2, unit:'frascos', price:2 },
-    { id:'s5', name:'Maíz en lata', qty:3, unit:'latas 15oz', price:1 },
-    { id:'s6', name:'Ravioli Chef Boyardee', qty:2, unit:'latas 15oz', price:2 },
-    { id:'s7', name:'Corned Beef Hash', qty:1, unit:'lata 14oz', price:3 },
-    { id:'s8', name:'Rice-A-Roni', qty:1, unit:'caja 6.4oz', price:2 },
-    { id:'s9', name:'Sopa Maggi + Cabello de ángel', qty:1, unit:'combo', price:4 },
-    { id:'s10', name:'Velveeta Shells & Cheese', qty:3, unit:'cajas 12oz', price:3 },
-    { id:'s11', name:'Atún en lata', qty:1, unit:'pack x3', price:3 },
-    { id:'s12', name:'Sal', qty:1, unit:'paquete 26oz', price:1 },
-    { id:'s13', name:'Aceite', qty:1, unit:'botella 48fl', price:4 },
-    { id:'s14', name:'Salsa picante Tapatio', qty:1, unit:'botella chica', price:2 },
-  ]},
-  { id:'congelados', items:[
-    { id:'cn1', name:'Lasaña Stouffer familiar', qty:1, unit:'unidad 2lb', price:10 },
-    { id:'cn2', name:'Pizza Rising Crust', qty:1, unit:'unidad 29oz', price:5 },
-    { id:'cn3', name:'Corn dogs', qty:1, unit:'bolsa 27oz', price:7 },
-    { id:'cn4', name:'Mozzarella sticks', qty:1, unit:'bolsa 18oz', price:5 },
-    { id:'cn5', name:'Waffles EGGO', qty:1, unit:'caja 13oz', price:3 },
-    { id:'cn6', name:'Sausage Croissant Sandwich', qty:1, unit:'caja 5oz', price:6 },
-    { id:'cn7', name:'Tazón amantes de carne', qty:2, unit:'unidades 7oz', price:2 },
-    { id:'cn8', name:'Papas fritas', qty:1, unit:'bolsa 32oz', price:3 },
-    { id:'cn9', name:'Sandwichs jamón y queso', qty:2, unit:'paquetes 9oz', price:2 },
-  ]},
-  { id:'desayuno', items:[
-    { id:'d1', name:'Corn Flakes', qty:1, unit:'caja 18oz', price:3 },
-    { id:'d2', name:'Café instantáneo Great Value', qty:1, unit:'frasco 8oz', price:6 },
-    { id:'d3', name:'Té Great Value', qty:1, unit:'caja 8oz', price:3 },
-    { id:'d4', name:'Jugo Tropicana', qty:1, unit:'botella 89oz', price:9 },
-    { id:'d5', name:'Agua Great Value', qty:1, unit:'pack 20 lts', price:6 },
-  ]},
-  { id:'extras', items:[
-    { id:'e1', name:'Bolsas Ziploc Gallon', qty:1, unit:'caja x15', price:4 },
-    { id:'e2', name:'Maní salado o mix de frutos secos', qty:1, unit:'bolsa', price:4 },
-  ]},
-];
+let wmData = [];
 
 let wmChecked = new Set();
 let wmOpenSections = new Set(Object.keys(wmCatMeta));
