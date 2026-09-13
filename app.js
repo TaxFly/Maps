@@ -269,7 +269,7 @@ function packingAddItem() {
   packingSave();
   packingCloseAddModal();
   renderOutlets();
-  showMToast('Agregado a la valija');
+  showMToast('Agregado al checklist');
 }
 
 // Incrementar este número cada vez que se corrijan coordenadas o paradas
@@ -1300,7 +1300,7 @@ function renderOutlets() {
     <div class="outlets-subtabs">
       <button class="outlets-stab${outletSubTab==='cronograma'?' active':''}" onclick="switchOutletTab('cronograma')">${ic('calendar',13)} Cronograma</button>
       <button class="outlets-stab${outletSubTab==='lista'?' active':''}" onclick="switchOutletTab('lista')">${ic('shirt',13)} Compras</button>
-      <button class="outlets-stab${outletSubTab==='valija'?' active':''}" onclick="switchOutletTab('valija')">${ic('backpack',13)} Valija</button>
+      <button class="outlets-stab${outletSubTab==='Checklist'?' active':''}" onclick="switchOutletTab('Checklist')">${ic('backpack',13)} Checklist</button>
     </div>`;
 
   if (outletSubTab === 'cronograma') {
@@ -1323,7 +1323,7 @@ function renderOutlets() {
       html += renderDayContent(currentDay);
       html += `</div>`;
     }
-  } else if (outletSubTab === 'valija') {
+  } else if (outletSubTab === 'Checklist') {
     html += renderPacking();
   } else {
     // Shopping list
@@ -3188,7 +3188,7 @@ async function wipeSection(section) {
   if (section === 'parques') return wipeParques();
 }
 async function wipeOutlets() {
-  const ok = await showConfirm('Se van a borrar TODOS los días y paradas del cronograma de Outlets (la lista de compras y la valija no se tocan).', '¿Vaciar cronograma?', 'Vaciar', true);
+  const ok = await showConfirm('Se van a borrar TODOS los días y paradas del cronograma de Outlets (la lista de compras y el checklist no se tocan).', '¿Vaciar cronograma?', 'Vaciar', true);
   if (!ok) return;
   days.length = 0;
   visited.length = 0;
