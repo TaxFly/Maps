@@ -509,5 +509,46 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
 </div>
+<div class="modal-bg" id="addParkModal">
+  <div class="modal-box">
+    <h2>Agregar parque</h2>
+    <div class="mform-group">
+      <label>Nombre del parque</label>
+      <input type="text" id="pk-add-name" placeholder="ej: SeaWorld Orlando, Busch Gardens Tampa…" oninput="this.classList.remove('error');document.getElementById('pk-add-name-err').classList.remove('show')">
+      <div class="field-error" id="pk-add-name-err">Escribí el nombre del parque</div>
+    </div>
+    <div class="mform-group">
+      <label>Color</label>
+      <div class="pk-color-swatches" id="pk-color-swatches"></div>
+    </div>
+    <div class="mform-group">
+      <button type="button" class="mbtn-ghost" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px" onclick="pkWikiSearchClick()"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> Buscar atracciones automáticamente</button>
+      <div class="pk-wiki-status" id="pk-wiki-status"></div>
+      <div class="pk-wiki-results" id="pk-wiki-results" style="display:none"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn-ghost" onclick="pkCloseAddParkModal()">Cancelar</button>
+      <button class="mbtn-primary" onclick="pkCreateCustomPark()">Crear parque</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="addAttrModal">
+  <div class="modal-box">
+    <h2>Agregar atracción</h2>
+    <div class="mform-group">
+      <label>Nombre de la atracción</label>
+      <input type="text" id="pk-attr-add-name" placeholder="ej: Journey to Atlantis" oninput="this.classList.remove('error');document.getElementById('pk-attr-add-name-err').classList.remove('show')">
+      <div class="field-error" id="pk-attr-add-name-err">Escribí el nombre de la atracción</div>
+    </div>
+    <div class="mform-group">
+      <label>Altura mínima (opcional)</label>
+      <input type="text" id="pk-attr-add-height" placeholder="ej: 40&quot;/ 102 cm">
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn-ghost" onclick="pkCloseAddAttrModal()">Cancelar</button>
+      <button class="mbtn-primary" onclick="pkAddAttraction()">Agregar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

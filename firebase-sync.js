@@ -70,11 +70,13 @@ async function startApp() {
     fbGet('wmChecked'),
     fbGet('shopping'),
     fbGet('packing'),
+    fbGet('customParks'),
+    fbGet('parquesExtra'),
     fbGet('parques'),
   ]);
 
   const val = (r) => r.status === 'fulfilled' ? r.value : null;
-  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, packingDataFb, parquesDataFb] = results.map(val);
+  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, packingDataFb, customParksDataFb, parquesExtraDataFb, parquesDataFb] = results.map(val);
 
   if (hotelData) window._hotelFromFb = hotelData;
   if (daysData && daysData.days) window._daysFromFb = daysData.days;
@@ -84,6 +86,8 @@ async function startApp() {
   if (wmCheckedFb && wmCheckedFb.checked) window._wmCheckedFromFb = wmCheckedFb.checked;
   if (shopDataFb) window._shopFromFb = shopDataFb;
   if (packingDataFb) window._packingFromFb = packingDataFb;
+  if (customParksDataFb && customParksDataFb.items) window._customParksFromFb = customParksDataFb.items;
+  if (parquesExtraDataFb) window._parquesExtraFromFb = parquesExtraDataFb;
   if (parquesDataFb && parquesDataFb.state) window._parquesFromFb = parquesDataFb.state;
 
   window._fbReady = true;
@@ -145,6 +149,18 @@ async function startApp() {
       window._packingFromFb = data;
       window._setPackingData && window._setPackingData(data);
       window.renderOutlets && window.renderOutlets();
+    }
+  });
+  fbListen('customParks', data => {
+    if (data && data.items !== undefined && window._appInited) {
+      window._setCustomParksData && window._setCustomParksData(data.items);
+      window.renderParques && window.renderParques();
+    }
+  });
+  fbListen('parquesExtra', data => {
+    if (data && window._appInited) {
+      window._setExtraZonesData && window._setExtraZonesData(data);
+      window.renderParques && window.renderParques();
     }
   });
   fbListen('parques', data => {

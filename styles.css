@@ -1248,6 +1248,37 @@ body.theme-parques .global-counter { color: #8b5cf6; border-color: rgba(139,92,2
 .park-attr-height { font-size: 10px; color: #8b5cf6; font-weight: 600; margin-top: 2px; }
 .parques-reset-row { display: flex; justify-content: center; margin-top: 14px; }
 
+/* Parque personalizado: usa --pk-color en vez de una clase fija por parque */
+.park-card.pk-custom .park-card-header::before { background: var(--pk-color, #8b5cf6); }
+.park-card.pk-custom .park-card-name { color: var(--pk-color, #8b5cf6); }
+.park-card.pk-custom .park-card-count { color: var(--pk-color, #8b5cf6); }
+.park-card.pk-custom .park-mini-bar-fill { background: var(--pk-color, #8b5cf6); }
+.park-card.pk-custom::after {
+  background: var(--pk-color, #8b5cf6);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Ccircle cx='12' cy='12' r='1.6'/%3E%3Cpath d='M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Ccircle cx='12' cy='12' r='1.6'/%3E%3Cpath d='M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8'/%3E%3C/svg%3E");
+}
+
+.park-add-attr-row { padding: 10px 16px 14px; display: flex; justify-content: center; border-top: 1px solid var(--border); }
+
+/* Selector de color para crear un parque */
+.pk-color-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.pk-color-swatch {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; padding: 0; transition: transform .15s, border-color .15s;
+}
+.pk-color-swatch.active { border-color: var(--text); transform: scale(1.1); }
+
+/* Resultado de la búsqueda automática en Wikipedia */
+.pk-wiki-status { font-size: var(--fs-2xs); color: var(--muted); margin-top: 8px; line-height: 1.5; }
+.pk-wiki-results {
+  margin-top: 8px; max-height: 220px; overflow-y: auto;
+  border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 6px 10px;
+}
+.pk-wiki-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: var(--fs-xs); color: var(--text); border-bottom: 1px solid var(--border); }
+.pk-wiki-item:last-child { border-bottom: none; }
+.pk-wiki-item input { flex-shrink: 0; width: 16px; height: 16px; accent-color: var(--theme-accent); }
+
 /* ═══════ CONFIRM / ALERT MODALS ═══════ */
 .confirm-overlay {
   display: none;

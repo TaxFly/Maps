@@ -439,6 +439,8 @@ window._appInit = function() {
   wmLoad();
   shopLoad();
   packingLoad();
+  customParksLoad();
+  extraZonesLoad();
   parquesLoad();
   renderOutlets();
   updateGlobal();
@@ -882,6 +884,18 @@ window._setShopData = function(d) {
 window._setPackingData = function(d) {
   if (d.items !== undefined) packingItems = d.items;
   if (d.checked !== undefined) packingChecked = new Set(d.checked);
+};
+window._setCustomParksData = function(items) {
+  customParks = items || [];
+  customParks.forEach(p => { if (p.color) PARK_COLORS[p.id] = p.color; });
+};
+window._setExtraZonesData = function(zones) {
+  extraZones = zones || {};
+  Object.keys(extraZones).forEach(parkId => {
+    const park = PARKS_DATA.find(p => p.id === parkId);
+    const zone = extraZones[parkId];
+    if (park && zone && zone.attractions && !park.zones.includes(zone)) park.zones.push(zone);
+  });
 };
 let wmData = [
   { id:'pan', items:[
@@ -1958,7 +1972,7 @@ function toggleAttraction(parkId, zoneIdx, attrIdx) {
   // Actualizar pin en mapa sin re-renderizar todo
   const mapInst = _parkMaps[parkId];
   if (mapInst) {
-    const park = PARKS_DATA.find(p => p.id === parkId);
+    const park = allParksList().find(p => p.id === parkId);
     const attr = park?.zones[zoneIdx]?.attractions[attrIdx];
     const globalIdx = park ? (() => { let idx=0; for(let zi=0;zi<zoneIdx;zi++) idx+=park.zones[zi].attractions.length; return idx+attrIdx; })() : -1;
     const markerObj = mapInst._markers && mapInst._markers[globalIdx];
@@ -1979,7 +1993,7 @@ function pkCountPark(park) {
 
 function pkCountAll() {
   let done = 0, total = 0;
-  PARKS_DATA.forEach(p => { const c = pkCountPark(p); done += c.done; total += c.total; });
+  allParksList().forEach(p => { const c = pkCountPark(p); done += c.done; total += c.total; });
   return { done, total };
 }
 
@@ -1993,6 +2007,43 @@ let pkFilter = 'all';
 let pkSearchQuery = '';
 function pkNorm(s) { return (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 let pkOpenCards = new Set(['mk','epcot','hs','ioa','usf','epic']);
+
+// ─── PARQUES PERSONALIZADOS Y ATRACCIONES AGREGADAS A MANO ───────
+// Dos capas de datos de usuario, separadas de PARKS_DATA (que es código,
+// no algo persistido, así que se re-arma igual en cada carga):
+// - customParks: parques enteros que el usuario creó desde cero.
+// - extraZones: una zona extra por parque PREDEFINIDO (mk, epcot, etc.)
+//   con las atracciones que el usuario sumó porque notó que faltaban.
+// Ambas se guardan en localStorage + Firebase igual que el resto de los
+// módulos, y en el init se "reinyectan" dentro de park.zones para que el
+// resto del código (contador, mapa, buscador, toggle) las trate exactamente
+// igual que a las atracciones curadas, sin casos especiales.
+const CUSTOM_PARKS_KEY = 'parques-custom';
+const EXTRA_ZONES_KEY = 'parques-extra-zonas';
+const PARK_COLOR_OPTIONS = ['#2563eb','#7c3aed','#10b981','#f59e0b','#ef4444','#0ea5e9','#ec4899','#14b8a6'];
+let customParks = [];
+let extraZones = {};
+
+function customParksSave() { syncedSave(CUSTOM_PARKS_KEY, customParks, 'customParks', { items: customParks }); }
+function customParksLoad() {
+  const d = syncedLoad(CUSTOM_PARKS_KEY, window._customParksFromFb);
+  customParks = d || [];
+  customParks.forEach(p => { if (p.color) PARK_COLORS[p.id] = p.color; });
+}
+function extraZonesSave() { syncedSave(EXTRA_ZONES_KEY, extraZones, 'parquesExtra', extraZones); }
+function extraZonesLoad() {
+  const d = syncedLoad(EXTRA_ZONES_KEY, window._parquesExtraFromFb);
+  extraZones = d || {};
+  Object.keys(extraZones).forEach(parkId => {
+    const park = PARKS_DATA.find(p => p.id === parkId);
+    const zone = extraZones[parkId];
+    if (park && zone && zone.attractions && zone.attractions.length > 0 && !park.zones.includes(zone)) {
+      park.zones.push(zone);
+    }
+  });
+}
+function allParksList() { return [...PARKS_DATA, ...customParks]; }
+function pkIsCustomPark(parkId) { return customParks.some(p => p.id === parkId); }
 
 const PARKS_DATA = [
   {
@@ -2348,7 +2399,7 @@ async function pkResetAll() {
   updateParquesCounter();
 }
 
-const pkFilterMeta = [
+const pkFilterMetaBase = [
   { id: 'all',  label: 'Todos' },
   { id: 'mk',   label: 'Magic Kingdom' },
   { id: 'epcot',label: 'EPCOT' },
@@ -2357,6 +2408,9 @@ const pkFilterMeta = [
   { id: 'usf',  label: 'Universal Studios' },
   { id: 'epic', label: 'Epic Universe' },
 ];
+function pkFilterMetaList() {
+  return [...pkFilterMetaBase, ...customParks.map(p => ({ id: p.id, label: p.name }))];
+}
 
 // ─── PARK MAPS ─────────────────────────────────────────────
 const PARK_COLORS = {
@@ -2429,7 +2483,7 @@ function initParkMap(parkId) {
   }
   container.innerHTML = '';
 
-  const park = PARKS_DATA.find(p => p.id === parkId);
+  const park = allParksList().find(p => p.id === parkId);
   if (!park) return;
 
   const color = PARK_COLORS[parkId] || '#8b5cf6';
@@ -2510,29 +2564,35 @@ function renderParques() {
     </div>
     <div class="parques-filter-bar">`;
 
-  pkFilterMeta.forEach(f => {
+  pkFilterMetaList().forEach(f => {
     html += `<button class="parques-filter-btn${pkFilter===f.id?' active':''}" onclick="pkSetFilter('${f.id}')">${f.label}</button>`;
   });
-  html += `</div>`;
+  html += `</div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="wm-reset-btn" onclick="pkOpenAddParkModal()">+ Agregar parque</button>
+    </div>`;
 
-  PARKS_DATA.forEach(park => {
+  allParksList().forEach(park => {
     const visible = pkFilter === 'all' || pkFilter === park.id;
     const { done, total } = pkCountPark(park);
     const pct = total > 0 ? Math.round(done / total * 100) : 0;
     const q = pkNorm(pkSearchQuery);
     const parkMatches = !q || park.zones.some(z => z.attractions.some(a => pkNorm(a.name).includes(q)));
     const isOpen = pkOpenCards.has(park.id) || (!!q && parkMatches);
+    const isCustom = pkIsCustomPark(park.id);
+    const colorStyle = isCustom ? ` style="--pk-color:${park.color}"` : '';
 
-    html += `<div class="park-card ${park.cls}${(!visible || (q && !parkMatches)) ? ' pk-hidden' : ''}${isOpen ? ' open' : ''}" id="pkcard-${park.id}">
+    html += `<div class="park-card ${park.cls}${isCustom ? ' pk-custom' : ''}${(!visible || (q && !parkMatches)) ? ' pk-hidden' : ''}${isOpen ? ' open' : ''}" id="pkcard-${park.id}"${colorStyle}>
       <div class="park-card-header" onclick="pkToggleCard('${park.id}')">
         <span class="park-card-emoji">${ic(PARK_ICONS[park.id] || 'ferris', 20)}</span>
         <div class="park-card-info">
-          <div class="park-card-name">${park.name}</div>
-          <div class="park-card-label">${park.label}</div>
+          <div class="park-card-name">${escapeHtml(park.name)}</div>
+          <div class="park-card-label">${escapeHtml(park.label)}</div>
         </div>
         <div class="park-card-right">
           <span class="park-card-count">${done}/${total}</span>
           <div class="park-mini-bar-bg"><div class="park-mini-bar-fill" style="width:${pct}%"></div></div>
+          ${isCustom ? `<button class="wm-icon-btn wm-icon-del" onclick="pkDeleteCustomPark('${park.id}');event.stopPropagation()" title="Eliminar parque" aria-label="Eliminar parque ${escapeHtml(park.name)}">${ic('x', 13)}</button>` : ''}
           <span class="park-card-chevron">▾</span>
         </div>
       </div>
@@ -2540,19 +2600,22 @@ function renderParques() {
 
     park.zones.forEach((zone, zi) => {
       const zoneMatches = !q || zone.attractions.some(a => pkNorm(a.name).includes(q));
-      html += `<div class="park-zone-title"${zoneMatches ? '' : ' style="display:none"'}>${zone.name}</div>`;
+      html += `<div class="park-zone-title"${zoneMatches ? '' : ' style="display:none"'}>${escapeHtml(zone.name)}</div>`;
       zone.attractions.forEach((attr, ai) => {
         const done = pkDone(park.id, zi, ai);
         const itemMatches = !q || pkNorm(attr.name).includes(q);
         html += `<div class="park-attr-item${done ? ' pk-done' : ''}" data-name="${escapeHtml(pkNorm(attr.name))}"${itemMatches ? '' : ' style="display:none"'} onclick="toggleAttraction('${park.id}',${zi},${ai})">
           <div class="park-attr-check">${done ? '✓' : ''}</div>
           <div class="park-attr-body">
-            <div class="park-attr-name">${attr.name}</div>
-            ${attr.height ? `<div class="park-attr-height">↑ ${attr.height}</div>` : ''}
+            <div class="park-attr-name">${escapeHtml(attr.name)}</div>
+            ${attr.height ? `<div class="park-attr-height">↑ ${escapeHtml(attr.height)}</div>` : ''}
           </div>
+          ${attr._custom ? `<button class="wm-icon-btn wm-icon-del" onclick="pkDeleteAttraction('${park.id}',${zi},${ai},event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(attr.name)}">${ic('x', 13)}</button>` : ''}
         </div>`;
       });
     });
+
+    html += `<div class="park-add-attr-row"><button class="wm-reset-btn" onclick="pkOpenAddAttrModal('${park.id}')">+ Agregar atracción</button></div>`;
 
     // Mapa colapsable por parque
     const parkAttrsWithCoords = park.zones.flatMap(z => z.attractions).filter(a => a.lat && a.lng);
@@ -2586,3 +2649,251 @@ function renderParques() {
   }, 80);
 }
 
+
+// ─── MODAL: agregar parque personalizado ──────────────────────────
+let pkAddParkColor = PARK_COLOR_OPTIONS[0];
+let pkWikiCandidates = []; // [{name, checked}] — resultado de la búsqueda automática, editable antes de guardar
+
+function pkOpenAddParkModal() {
+  const nameEl = document.getElementById('pk-add-name');
+  nameEl.value = '';
+  nameEl.classList.remove('error');
+  document.getElementById('pk-add-name-err').classList.remove('show');
+  pkAddParkColor = PARK_COLOR_OPTIONS[Math.floor(Math.random() * PARK_COLOR_OPTIONS.length)];
+  pkRenderColorSwatches();
+  pkWikiCandidates = [];
+  document.getElementById('pk-wiki-status').textContent = '';
+  document.getElementById('pk-wiki-results').style.display = 'none';
+  document.getElementById('pk-wiki-results').innerHTML = '';
+  document.getElementById('addParkModal').classList.add('open');
+}
+function pkCloseAddParkModal() {
+  document.getElementById('addParkModal').classList.remove('open');
+}
+function pkRenderColorSwatches() {
+  const wrap = document.getElementById('pk-color-swatches');
+  if (!wrap) return;
+  wrap.innerHTML = PARK_COLOR_OPTIONS.map(c =>
+    `<button type="button" class="pk-color-swatch${c === pkAddParkColor ? ' active' : ''}" style="background:${c}" onclick="pkPickColor('${c}')" aria-label="Elegir color"></button>`
+  ).join('');
+}
+function pkPickColor(c) { pkAddParkColor = c; pkRenderColorSwatches(); }
+
+// Búsqueda automática en Wikipedia: es un intento "best effort" — Wikipedia
+// no tiene una API pensada para esto, así que se busca el artículo del
+// parque, se ubica una sección tipo "Attractions"/"Rides" y se extraen los
+// nombres de su lista. La calidad depende de cómo esté armado ese artículo
+// puntual; por eso el resultado siempre se muestra para revisar y destildar
+// antes de guardarlo, nunca se importa directo.
+async function pkWikiSearchAttractions(parkName) {
+  try {
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(parkName)}&limit=1&namespace=0&format=json&origin=*`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+    const title = searchData && searchData[1] && searchData[1][0];
+    if (!title) return { ok: false, reason: 'not_found' };
+
+    const sectionsUrl = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=sections&format=json&origin=*`;
+    const sectionsRes = await fetch(sectionsUrl);
+    const sectionsData = await sectionsRes.json();
+    const sections = (sectionsData.parse && sectionsData.parse.sections) || [];
+    const target = sections.find(s => /attraction|ride|roller.?coaster/i.test(s.line));
+    if (!target) return { ok: false, reason: 'no_section', title };
+
+    const wikitextUrl = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=wikitext&section=${target.index}&format=json&origin=*`;
+    const wikitextRes = await fetch(wikitextUrl);
+    const wikitextData = await wikitextRes.json();
+    const wikitext = wikitextData.parse && wikitextData.parse.wikitext && wikitextData.parse.wikitext['*'];
+    if (!wikitext) return { ok: false, reason: 'no_wikitext', title };
+
+    const names = pkParseAttractionNames(wikitext);
+    if (names.length === 0) return { ok: false, reason: 'empty', title };
+    return { ok: true, title, names };
+  } catch (e) {
+    devError('pkWikiSearchAttractions error', e);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+function pkParseAttractionNames(wikitext) {
+  const names = [];
+  wikitext.split('\n').forEach(raw => {
+    let line = raw.trim();
+    if (!line.startsWith('*') && !line.startsWith('|')) return;
+    line = line.replace(/^\*+\s*/, '').replace(/^\|\s*/, '');
+    line = line.replace(/<ref[^>]*>.*?<\/ref>/gi, '').replace(/<ref[^>]*\/>/gi, '');
+    line = line.replace(/\{\{[^}]*\}\}/g, '');
+    const wikilink = line.match(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
+    let name;
+    if (wikilink) {
+      name = (wikilink[2] || wikilink[1]).trim();
+    } else {
+      name = line.replace(/'''/g, '').replace(/''/g, '').trim();
+      name = name.split(/\s+[–—-]\s+/)[0];
+      name = name.split('(')[0].trim();
+    }
+    name = name.replace(/\[\[|\]\]/g, '').trim();
+    if (name && name.length > 1 && name.length < 60 && !/^\d+$/.test(name)) names.push(name);
+  });
+  return [...new Set(names)].slice(0, 40);
+}
+
+async function pkWikiSearchClick() {
+  const nameEl = document.getElementById('pk-add-name');
+  const name = nameEl.value.trim();
+  if (!name) {
+    nameEl.classList.add('error');
+    document.getElementById('pk-add-name-err').classList.add('show');
+    return;
+  }
+  const statusEl = document.getElementById('pk-wiki-status');
+  statusEl.textContent = 'Buscando en Wikipedia…';
+  document.getElementById('pk-wiki-results').style.display = 'none';
+  const result = await pkWikiSearchAttractions(name);
+  if (!result.ok) {
+    statusEl.textContent = 'No pude encontrar una lista automática para ese parque — creá el parque y agregá las atracciones a mano con "+ Agregar atracción".';
+    pkWikiCandidates = [];
+    return;
+  }
+  pkWikiCandidates = result.names.map(n => ({ name: n, checked: true }));
+  statusEl.textContent = `Encontradas ${pkWikiCandidates.length} en el artículo "${result.title}" — revisá y destildá las que no correspondan antes de crear el parque:`;
+  pkRenderWikiResults();
+}
+function pkRenderWikiResults() {
+  const wrap = document.getElementById('pk-wiki-results');
+  if (!wrap) return;
+  if (pkWikiCandidates.length === 0) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = 'block';
+  wrap.innerHTML = pkWikiCandidates.map((c, i) =>
+    `<label class="pk-wiki-item">
+      <input type="checkbox" ${c.checked ? 'checked' : ''} onchange="pkWikiCandidates[${i}].checked=this.checked">
+      <span>${escapeHtml(c.name)}</span>
+    </label>`
+  ).join('');
+}
+
+function pkCreateCustomPark() {
+  const nameEl = document.getElementById('pk-add-name');
+  const name = nameEl.value.trim();
+  if (!name) {
+    nameEl.classList.add('error');
+    document.getElementById('pk-add-name-err').classList.add('show');
+    return;
+  }
+  const id = 'custom_' + Date.now();
+  const selected = pkWikiCandidates.filter(c => c.checked).map(c => ({ name: c.name, _custom: true }));
+  const park = {
+    id, name, label: 'Parque personalizado', cls: 'pk-custom', color: pkAddParkColor,
+    zones: [{ name: 'Atracciones', attractions: selected }]
+  };
+  customParks.push(park);
+  PARK_COLORS[id] = pkAddParkColor;
+  customParksSave();
+  pkOpenCards.add(id);
+  pkCloseAddParkModal();
+  renderParques();
+  showMToast('Parque agregado');
+}
+
+async function pkDeleteCustomPark(parkId) {
+  const park = customParks.find(p => p.id === parkId);
+  if (!park) return;
+  const ok = await showConfirm(`Se va a borrar "${park.name}" y todas sus atracciones.`, '¿Eliminar parque?', 'Eliminar');
+  if (!ok) return;
+  customParks = customParks.filter(p => p.id !== parkId);
+  customParksSave();
+  // Limpiar el progreso guardado de ese parque
+  Object.keys(parquesState).filter(k => k.startsWith(parkId + '_')).forEach(k => delete parquesState[k]);
+  parquesSave();
+  renderParques();
+  showMToast('Parque eliminado');
+}
+
+// ─── MODAL: agregar atracción a cualquier parque ──────────────────
+let pkAddAttrParkId = null;
+function pkOpenAddAttrModal(parkId) {
+  pkAddAttrParkId = parkId;
+  const nameEl = document.getElementById('pk-attr-add-name');
+  nameEl.value = '';
+  nameEl.classList.remove('error');
+  document.getElementById('pk-attr-add-name-err').classList.remove('show');
+  document.getElementById('pk-attr-add-height').value = '';
+  document.getElementById('addAttrModal').classList.add('open');
+}
+function pkCloseAddAttrModal() {
+  document.getElementById('addAttrModal').classList.remove('open');
+}
+function pkAddAttraction() {
+  const nameEl = document.getElementById('pk-attr-add-name');
+  const name = nameEl.value.trim();
+  if (!name) {
+    nameEl.classList.add('error');
+    document.getElementById('pk-attr-add-name-err').classList.add('show');
+    return;
+  }
+  const height = document.getElementById('pk-attr-add-height').value.trim();
+  const attr = { name, _custom: true };
+  if (height) attr.height = height;
+
+  const park = allParksList().find(p => p.id === pkAddAttrParkId);
+  if (!park) return;
+
+  if (pkIsCustomPark(park.id)) {
+    let zone = park.zones[0];
+    if (!zone) { zone = { name: 'Atracciones', attractions: [] }; park.zones.push(zone); }
+    zone.attractions.push(attr);
+    customParksSave();
+  } else {
+    let zone = park.zones.find(z => z._extra);
+    if (!zone) { zone = { name: 'Agregado por vos', attractions: [], _extra: true }; park.zones.push(zone); }
+    zone.attractions.push(attr);
+    extraZones[park.id] = zone;
+    extraZonesSave();
+  }
+  pkOpenCards.add(park.id);
+  pkCloseAddAttrModal();
+  renderParques();
+  showMToast('Atracción agregada');
+}
+
+// Solo se puede borrar una atracción que el usuario agregó a mano
+// (attr._custom) — las curadas del parque quedan protegidas.
+function pkDeleteAttraction(parkId, zoneIdx, attrIdx, e) {
+  e && e.stopPropagation();
+  const park = allParksList().find(p => p.id === parkId);
+  if (!park) return;
+  const zone = park.zones[zoneIdx];
+  if (!zone) return;
+  const [removed] = zone.attractions.splice(attrIdx, 1);
+  const prefix = `${parkId}_${zoneIdx}_`;
+  const wasDone = !!parquesState[prefix + attrIdx];
+
+  const reindex = (shiftUp) => {
+    const rebuilt = {};
+    Object.keys(parquesState).forEach(k => {
+      if (k.startsWith(prefix)) {
+        const idx = parseInt(k.slice(prefix.length), 10);
+        if (!shiftUp && idx === attrIdx) return;
+        const newIdx = shiftUp ? (idx >= attrIdx ? idx + 1 : idx) : (idx > attrIdx ? idx - 1 : idx);
+        rebuilt[prefix + newIdx] = parquesState[k];
+      } else {
+        rebuilt[k] = parquesState[k];
+      }
+    });
+    parquesState = rebuilt;
+  };
+  reindex(false);
+  parquesSave();
+  const isCustom = pkIsCustomPark(parkId);
+  if (isCustom) customParksSave(); else extraZonesSave();
+  renderParques();
+
+  showUndoToast(`"${removed.name}" eliminada`, () => {
+    zone.attractions.splice(attrIdx, 0, removed);
+    reindex(true);
+    if (wasDone) parquesState[prefix + attrIdx] = true;
+    parquesSave();
+    if (isCustom) customParksSave(); else extraZonesSave();
+    renderParques();
+  });
+}
