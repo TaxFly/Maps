@@ -72,11 +72,12 @@ async function startApp() {
     fbGet('packing'),
     fbGet('customParks'),
     fbGet('parquesExtra'),
+    fbGet('coordOverrides'),
     fbGet('parques'),
   ]);
 
   const val = (r) => r.status === 'fulfilled' ? r.value : null;
-  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, packingDataFb, customParksDataFb, parquesExtraDataFb, parquesDataFb] = results.map(val);
+  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, packingDataFb, customParksDataFb, parquesExtraDataFb, coordOverridesDataFb, parquesDataFb] = results.map(val);
 
   if (hotelData) window._hotelFromFb = hotelData;
   if (daysData && daysData.days) window._daysFromFb = daysData.days;
@@ -88,6 +89,7 @@ async function startApp() {
   if (packingDataFb) window._packingFromFb = packingDataFb;
   if (customParksDataFb && customParksDataFb.items) window._customParksFromFb = customParksDataFb.items;
   if (parquesExtraDataFb) window._parquesExtraFromFb = parquesExtraDataFb;
+  if (coordOverridesDataFb) window._coordOverridesFromFb = coordOverridesDataFb;
   if (parquesDataFb && parquesDataFb.state) window._parquesFromFb = parquesDataFb.state;
 
   window._fbReady = true;
@@ -160,6 +162,12 @@ async function startApp() {
   fbListen('parquesExtra', data => {
     if (data && window._appInited) {
       window._setExtraZonesData && window._setExtraZonesData(data);
+      window.renderParques && window.renderParques();
+    }
+  });
+  fbListen('coordOverrides', data => {
+    if (data && window._appInited) {
+      window._setCoordOverridesData && window._setCoordOverridesData(data);
       window.renderParques && window.renderParques();
     }
   });

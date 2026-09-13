@@ -1256,6 +1256,9 @@ body.theme-parques .global-counter { color: #8b5cf6; border-color: rgba(139,92,2
 }
 .park-attr-item.pk-done .park-attr-name { color: var(--muted); text-decoration: line-through; }
 .park-attr-height { font-size: 10px; color: #8b5cf6; font-weight: 600; margin-top: 2px; }
+.pk-loc-btn { color: var(--muted); }
+.pk-loc-btn.pk-loc-missing { color: #f59e0b; opacity: 0.75; }
+.pk-loc-btn.pk-loc-missing:hover { opacity: 1; }
 .parques-reset-row { display: flex; justify-content: center; margin-top: 14px; }
 
 /* Parque personalizado: usa --pk-color en vez de una clase fija por parque */

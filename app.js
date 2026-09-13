@@ -36,6 +36,7 @@ const ICON_PATHS = {
   droplet:    '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/>',
   file:       '<path d="M7 2h7l5 5v13a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5.5 20V3.5A1.5 1.5 0 0 1 7 2Z"/><path d="M14 2v5h5"/>',
   plug:       '<path d="M9 3v4M15 3v4M6.5 7h11l-1 6a6 6 0 0 1-9 0Z"/><path d="M12 17v4"/>',
+  pin:        '<path d="M12 22s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/>',
 };
 function ic(name, size) {
   const s = size || 16;
@@ -444,6 +445,7 @@ window._appInit = function() {
   packingLoad();
   customParksLoad();
   extraZonesLoad();
+  coordOverridesLoad();
   parquesLoad();
   renderOutlets();
   updateGlobal();
@@ -900,6 +902,7 @@ window._setExtraZonesData = function(zones) {
     if (park && zone && zone.attractions && !park.zones.includes(zone)) park.zones.push(zone);
   });
 };
+window._setCoordOverridesData = function(overrides) { coordOverrides = overrides || {}; };
 let wmData = [
   { id:'pan', items:[
     { id:'p1', name:'Pan lactal', qty:2, unit:'bolsas', price:2 },
@@ -2112,6 +2115,76 @@ function extraZonesLoad() {
 function allParksList() { return [...PARKS_DATA, ...customParks]; }
 function pkIsCustomPark(parkId) { return customParks.some(p => p.id === parkId); }
 
+// ─── COORDENADAS: overrides + geocodificación real ────────────────
+// Los pines "de fábrica" de PARKS_DATA fueron estimados a mano y pueden
+// estar corridos. En vez de tratar de arreglar ~190 a ciegas desde acá,
+// esta capa deja que la propia app (corriendo en el navegador del usuario,
+// con internet real) los verifique contra Wikipedia y permite corregir
+// cualquier atracción a mano — con dirección o lat/lng directos. La
+// corrección se guarda acá, nunca se pisa PARKS_DATA (que es código).
+const COORD_OVERRIDES_KEY = 'parques-coord-overrides';
+let coordOverrides = {}; // { "parkId_zoneIdx_attrIdx": {lat, lng} }
+function coordOverridesSave() { syncedSave(COORD_OVERRIDES_KEY, coordOverrides, 'coordOverrides', coordOverrides); }
+function coordOverridesLoad() {
+  const d = syncedLoad(COORD_OVERRIDES_KEY, window._coordOverridesFromFb);
+  coordOverrides = d || {};
+}
+// Coordenadas "efectivas" de una atracción: la corrección si existe,
+// si no la que trae PARKS_DATA/customParks.
+function pkCoord(parkId, zoneIdx, attrIdx, attr) {
+  const ov = coordOverrides[`${parkId}_${zoneIdx}_${attrIdx}`];
+  if (ov) return { lat: ov.lat, lng: ov.lng };
+  if (attr.lat && attr.lng) return { lat: attr.lat, lng: attr.lng };
+  return null;
+}
+function pkSetCoordOverride(parkId, zoneIdx, attrIdx, lat, lng) {
+  coordOverrides[`${parkId}_${zoneIdx}_${attrIdx}`] = { lat, lng };
+  coordOverridesSave();
+}
+
+// Wikipedia: busca el artículo de la atracción (con el nombre del parque
+// como pista para desambiguar, ej. "Space Mountain Magic Kingdom") y lee
+// sus coordenadas del propio Wikidata/infobox vía prop=coordinates — mucho
+// más preciso que adivinar texto, porque es un campo estructurado.
+async function geoWikipediaCoords(name, parkHint) {
+  try {
+    const query = parkHint ? `${name} ${parkHint}` : name;
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=1&namespace=0&format=json&origin=*`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+    const title = searchData && searchData[1] && searchData[1][0];
+    if (!title) return null;
+
+    const coordUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=coordinates&format=json&origin=*`;
+    const coordRes = await fetch(coordUrl);
+    const coordData = await coordRes.json();
+    const pages = coordData.query && coordData.query.pages;
+    const page = pages && Object.values(pages)[0];
+    const coord = page && page.coordinates && page.coordinates[0];
+    if (!coord) return null;
+    return { lat: coord.lat, lng: coord.lon, title };
+  } catch (e) {
+    devError('geoWikipediaCoords error', e);
+    return null;
+  }
+}
+
+// Nominatim (OpenStreetMap): geocodifica una dirección escrita a mano.
+// Gratis, sin API key, pero pide no golpearlo muy seguido (1 req/seg).
+async function geoNominatimAddress(address) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data || !data[0]) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch (e) {
+    devError('geoNominatimAddress error', e);
+    return null;
+  }
+}
+function geoSleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 const PARKS_DATA = [
   {
     id: 'mk', name: 'Magic Kingdom', emoji: '🏰', label: 'Walt Disney World', cls: 'pk-mk',
@@ -2566,7 +2639,8 @@ function initParkMap(parkId) {
 
   park.zones.forEach((zone, zi) => {
     zone.attractions.forEach((attr, ai) => {
-      if (!attr.lat || !attr.lng) { globalIdx++; return; }
+      const coord = pkCoord(parkId, zi, ai, attr);
+      if (!coord) { globalIdx++; return; }
       const isDone = pkDone(parkId, zi, ai);
       const icon = makeParkPin(color, isDone, attr.name);
 
@@ -2577,7 +2651,7 @@ function initParkMap(parkId) {
         ? `<div style="margin-top:5px;font-size:11px;color:#10b981">✓ Completada</div>`
         : '';
 
-      const marker = L.marker([attr.lat, attr.lng], { icon })
+      const marker = L.marker([coord.lat, coord.lng], { icon })
         .bindPopup(`
           <div class="map-popup-name">${attr.name}</div>
           <div class="map-popup-desc">${zone.name}</div>
@@ -2587,7 +2661,7 @@ function initParkMap(parkId) {
         .addTo(map);
 
       markers[globalIdx] = marker;
-      bounds.push([attr.lat, attr.lng]);
+      bounds.push([coord.lat, coord.lng]);
       globalIdx++;
     });
   });
@@ -2671,26 +2745,32 @@ function renderParques() {
       zone.attractions.forEach((attr, ai) => {
         const done = pkDone(park.id, zi, ai);
         const itemMatches = !q || pkNorm(attr.name).includes(q);
+        const hasCoord = !!pkCoord(park.id, zi, ai, attr);
         html += `<div class="park-attr-item${done ? ' pk-done' : ''}" data-name="${escapeHtml(pkNorm(attr.name))}"${itemMatches ? '' : ' style="display:none"'} onclick="toggleAttraction('${park.id}',${zi},${ai})">
           <div class="park-attr-check">${done ? '✓' : ''}</div>
           <div class="park-attr-body">
             <div class="park-attr-name">${escapeHtml(attr.name)}</div>
             ${attr.height ? `<div class="park-attr-height">↑ ${escapeHtml(attr.height)}</div>` : ''}
           </div>
+          <button class="wm-icon-btn pk-loc-btn${hasCoord ? '' : ' pk-loc-missing'}" onclick="pkOpenLocationModal('${park.id}',${zi},${ai});event.stopPropagation()" title="${hasCoord ? 'Corregir ubicación' : 'Sin coordenadas — agregar'}" aria-label="Ubicación de ${escapeHtml(attr.name)}">${ic('pin', 13)}</button>
           ${attr._custom ? `<button class="wm-icon-btn wm-icon-del" onclick="pkDeleteAttraction('${park.id}',${zi},${ai},event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(attr.name)}">${ic('x', 13)}</button>` : ''}
         </div>`;
       });
     });
 
-    html += `<div class="park-add-attr-row"><button class="wm-reset-btn" onclick="pkOpenAddAttrModal('${park.id}')">+ Agregar atracción</button></div>`;
+    html += `<div class="park-add-attr-row" style="gap:8px;flex-wrap:wrap">
+      <button class="wm-reset-btn" onclick="pkOpenAddAttrModal('${park.id}')">+ Agregar atracción</button>
+      <button class="wm-reset-btn" onclick="pkVerifyParkCoords('${park.id}')" id="pk-verify-btn-${park.id}">${ic('pin',12)} Verificar coordenadas</button>
+    </div>`;
 
     // Mapa colapsable por parque
-    const parkAttrsWithCoords = park.zones.flatMap(z => z.attractions).filter(a => a.lat && a.lng);
-    if (parkAttrsWithCoords.length > 0) {
+    let parkAttrsWithCoordsCount = 0;
+    park.zones.forEach((z, zi) => z.attractions.forEach((a, ai) => { if (pkCoord(park.id, zi, ai, a)) parkAttrsWithCoordsCount++; }));
+    if (parkAttrsWithCoordsCount > 0) {
       html += `
         <div class="day-map-wrap" id="pkmap-wrap-${park.id}" style="margin:0;border-radius:0 0 var(--radius) var(--radius);border-top:1px solid var(--border);border-left:none;border-right:none;border-bottom:none;">
           <div class="day-map-header" onclick="pkToggleParkMap('${park.id}')">
-            <div class="day-map-title">${ic('map',13)} Mapa · ${parkAttrsWithCoords.length} atracciones</div>
+            <div class="day-map-title">${ic('map',13)} Mapa · ${parkAttrsWithCoordsCount} atracciones</div>
             <span class="day-map-chevron" id="pkmap-chev-${park.id}">▾</span>
           </div>
           <div id="pkmap-container-${park.id}" class="day-map-container" style="display:none;height:280px;"></div>
@@ -2885,10 +2965,37 @@ function pkOpenAddAttrModal(parkId) {
   nameEl.classList.remove('error');
   document.getElementById('pk-attr-add-name-err').classList.remove('show');
   document.getElementById('pk-attr-add-height').value = '';
+  document.getElementById('pk-attr-add-address').value = '';
+  document.getElementById('pk-attr-add-lat').value = '';
+  document.getElementById('pk-attr-add-lng').value = '';
+  document.getElementById('pk-attr-loc-status').textContent = '';
   document.getElementById('addAttrModal').classList.add('open');
 }
 function pkCloseAddAttrModal() {
   document.getElementById('addAttrModal').classList.remove('open');
+}
+async function pkAttrLocSearchAuto() {
+  const name = document.getElementById('pk-attr-add-name').value.trim();
+  const statusEl = document.getElementById('pk-attr-loc-status');
+  if (!name) { statusEl.textContent = 'Escribí primero el nombre de la atracción.'; return; }
+  const park = allParksList().find(p => p.id === pkAddAttrParkId);
+  statusEl.textContent = 'Buscando en Wikipedia…';
+  const result = await geoWikipediaCoords(name, park && park.name);
+  if (!result) { statusEl.textContent = 'No encontré coordenadas — probá con una dirección o cargalas a mano.'; return; }
+  document.getElementById('pk-attr-add-lat').value = result.lat.toFixed(6);
+  document.getElementById('pk-attr-add-lng').value = result.lng.toFixed(6);
+  statusEl.textContent = `Encontrado en "${result.title}".`;
+}
+async function pkAttrLocSearchAddress() {
+  const address = document.getElementById('pk-attr-add-address').value.trim();
+  const statusEl = document.getElementById('pk-attr-loc-status');
+  if (!address) { statusEl.textContent = 'Escribí una dirección primero.'; return; }
+  statusEl.textContent = 'Buscando dirección…';
+  const result = await geoNominatimAddress(address);
+  if (!result) { statusEl.textContent = 'No encontré esa dirección.'; return; }
+  document.getElementById('pk-attr-add-lat').value = result.lat.toFixed(6);
+  document.getElementById('pk-attr-add-lng').value = result.lng.toFixed(6);
+  statusEl.textContent = 'Dirección encontrada.';
 }
 function pkAddAttraction() {
   const nameEl = document.getElementById('pk-attr-add-name');
@@ -2899,8 +3006,11 @@ function pkAddAttraction() {
     return;
   }
   const height = document.getElementById('pk-attr-add-height').value.trim();
+  const lat = parseFloat(document.getElementById('pk-attr-add-lat').value);
+  const lng = parseFloat(document.getElementById('pk-attr-add-lng').value);
   const attr = { name, _custom: true };
   if (height) attr.height = height;
+  if (!isNaN(lat) && !isNaN(lng)) { attr.lat = lat; attr.lng = lng; }
 
   const park = allParksList().find(p => p.id === pkAddAttrParkId);
   if (!park) return;
@@ -2982,6 +3092,7 @@ function exportAllData() {
     packingChecked: [...packingChecked],
     customParks,
     extraZones,
+    coordOverrides,
     parquesState,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -3040,10 +3151,11 @@ async function importAllData(event) {
         if (park && zone && zone.attractions) park.zones.push(zone);
       });
     }
+    if (data.coordOverrides) coordOverrides = data.coordOverrides;
     if (data.parquesState) parquesState = data.parquesState;
 
     hotelSave(); saveState(); mealSave(); wmSave(); shopSave(); packingSave();
-    customParksSave(); extraZonesSave(); parquesSave();
+    customParksSave(); extraZonesSave(); coordOverridesSave(); parquesSave();
 
     currentOutletDay = 0;
     closeSettingsDrawer();
@@ -3096,13 +3208,138 @@ async function wipeParques() {
   if (!ok) return;
   customParks = [];
   extraZones = {};
+  coordOverrides = {};
   PARKS_DATA.forEach(p => { p.zones = p.zones.filter(z => !z._extra); });
   parquesState = {};
   pkFilter = 'all';
   customParksSave();
   extraZonesSave();
+  coordOverridesSave();
   parquesSave();
   closeSettingsDrawer();
   switchSection('parques');
   showMToast('Parques vaciado');
+}
+
+// ─── MODAL: ubicación de una atracción (una por una) ──────────────
+let pkLocTarget = null; // { parkId, zoneIdx, attrIdx }
+function pkOpenLocationModal(parkId, zoneIdx, attrIdx) {
+  const park = allParksList().find(p => p.id === parkId);
+  const zone = park && park.zones[zoneIdx];
+  const attr = zone && zone.attractions[attrIdx];
+  if (!attr) return;
+  pkLocTarget = { parkId, zoneIdx, attrIdx };
+  document.getElementById('pk-loc-title').textContent = attr.name;
+  document.getElementById('pk-loc-subtitle').textContent = park.name;
+  document.getElementById('pk-loc-address').value = '';
+  document.getElementById('pk-loc-status').textContent = '';
+  document.getElementById('pk-loc-lat').value = attr.lat != null ? attr.lat : (coordOverrides[`${parkId}_${zoneIdx}_${attrIdx}`]?.lat ?? '');
+  document.getElementById('pk-loc-lng').value = attr.lng != null ? attr.lng : (coordOverrides[`${parkId}_${zoneIdx}_${attrIdx}`]?.lng ?? '');
+  document.getElementById('locationModal').classList.add('open');
+}
+function pkCloseLocationModal() {
+  document.getElementById('locationModal').classList.remove('open');
+  pkLocTarget = null;
+}
+async function pkLocSearchAuto() {
+  if (!pkLocTarget) return;
+  const park = allParksList().find(p => p.id === pkLocTarget.parkId);
+  const attr = park.zones[pkLocTarget.zoneIdx].attractions[pkLocTarget.attrIdx];
+  const statusEl = document.getElementById('pk-loc-status');
+  statusEl.textContent = 'Buscando en Wikipedia…';
+  const result = await geoWikipediaCoords(attr.name, park.name);
+  if (!result) {
+    statusEl.textContent = 'No encontré coordenadas en Wikipedia para esta atracción — probá con la dirección o cargalas a mano.';
+    return;
+  }
+  document.getElementById('pk-loc-lat').value = result.lat.toFixed(6);
+  document.getElementById('pk-loc-lng').value = result.lng.toFixed(6);
+  statusEl.textContent = `Encontrado en el artículo "${result.title}" — revisá el pin y guardá si está bien.`;
+}
+async function pkLocSearchAddress() {
+  const address = document.getElementById('pk-loc-address').value.trim();
+  const statusEl = document.getElementById('pk-loc-status');
+  if (!address) { statusEl.textContent = 'Escribí una dirección primero.'; return; }
+  statusEl.textContent = 'Buscando dirección…';
+  const result = await geoNominatimAddress(address);
+  if (!result) {
+    statusEl.textContent = 'No encontré esa dirección — probá con más detalle (ej. agregá la ciudad).';
+    return;
+  }
+  document.getElementById('pk-loc-lat').value = result.lat.toFixed(6);
+  document.getElementById('pk-loc-lng').value = result.lng.toFixed(6);
+  statusEl.textContent = 'Dirección encontrada — revisá el pin y guardá si está bien.';
+}
+function pkSaveLocation() {
+  if (!pkLocTarget) return;
+  const lat = parseFloat(document.getElementById('pk-loc-lat').value);
+  const lng = parseFloat(document.getElementById('pk-loc-lng').value);
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    document.getElementById('pk-loc-status').textContent = 'Coordenadas inválidas.';
+    return;
+  }
+  pkSaveCoord(pkLocTarget.parkId, pkLocTarget.zoneIdx, pkLocTarget.attrIdx, lat, lng);
+  pkCloseLocationModal();
+  renderParques();
+  showMToast('Ubicación guardada');
+}
+// Guarda coordenadas en el lugar correcto: directo en el objeto si la
+// atracción es de un parque/zona propios del usuario (se persisten
+// completos), o en coordOverrides si es una atracción curada de PARKS_DATA
+// (que es código y no se puede editar de forma permanente).
+function pkSaveCoord(parkId, zoneIdx, attrIdx, lat, lng) {
+  const park = allParksList().find(p => p.id === parkId);
+  if (!park) return;
+  const zone = park.zones[zoneIdx];
+  const attr = zone && zone.attractions[attrIdx];
+  if (!attr) return;
+  if (pkIsCustomPark(parkId)) {
+    attr.lat = lat; attr.lng = lng;
+    customParksSave();
+  } else if (zone._extra) {
+    attr.lat = lat; attr.lng = lng;
+    extraZonesSave();
+  } else {
+    pkSetCoordOverride(parkId, zoneIdx, attrIdx, lat, lng);
+  }
+}
+
+// ─── Verificación automática en lote, parque por parque ───────────
+// Recorre las atracciones del parque y busca cada una en Wikipedia, con
+// una pausa entre pedidos para no saturar la API. Nunca pisa una
+// corrección que el usuario ya haya guardado a mano; sólo completa lo
+// que falta o lo que sigue con la coordenada original sin revisar.
+async function pkVerifyParkCoords(parkId) {
+  const park = allParksList().find(p => p.id === parkId);
+  if (!park) return;
+  const btn = document.getElementById(`pk-verify-btn-${parkId}`);
+  const targets = [];
+  park.zones.forEach((zone, zi) => zone.attractions.forEach((attr, ai) => targets.push({ zi, ai, attr })));
+  if (targets.length === 0) return;
+
+  const ok = await showConfirm(
+    `Se va a buscar en Wikipedia la ubicación de las ${targets.length} atracciones de "${park.name}", una por una (puede tardar uno o dos minutos). Las que ya corregiste a mano no se tocan.`,
+    '¿Verificar coordenadas?', 'Verificar'
+  );
+  if (!ok) return;
+
+  let found = 0, checked = 0;
+  if (btn) { btn.disabled = true; btn.textContent = 'Verificando 0/' + targets.length + '…'; }
+
+  for (const t of targets) {
+    const key = `${parkId}_${t.zi}_${t.ai}`;
+    if (coordOverrides[key]) { checked++; continue; } // ya corregida a mano, no se toca
+    const result = await geoWikipediaCoords(t.attr.name, park.name);
+    if (result) {
+      pkSaveCoord(parkId, t.zi, t.ai, result.lat, result.lng);
+      found++;
+    }
+    checked++;
+    if (btn) btn.textContent = `Verificando ${checked}/${targets.length}…`;
+    await geoSleep(400); // ser prudente con la API pública de Wikipedia
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = ic('pin', 12) + ' Verificar coordenadas'; }
+  renderParques();
+  showMToast(`Corregidas ${found} de ${targets.length}`);
 }

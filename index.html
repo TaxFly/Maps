@@ -582,9 +582,47 @@ if ('serviceWorker' in navigator) {
       <label>Altura mínima (opcional)</label>
       <input type="text" id="pk-attr-add-height" placeholder="ej: 40&quot;/ 102 cm">
     </div>
+    <div class="mform-group">
+      <label>Ubicación (opcional, para que salga en el mapa)</label>
+      <button type="button" class="mbtn-ghost" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px" onclick="pkAttrLocSearchAuto()"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> Buscar automáticamente en Wikipedia</button>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input type="text" id="pk-attr-add-address" placeholder="o escribí una dirección…" style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;outline:none">
+        <button type="button" class="mbtn-ghost" onclick="pkAttrLocSearchAddress()">Buscar</button>
+      </div>
+      <div class="pk-wiki-status" id="pk-attr-loc-status"></div>
+      <div class="wm-edit-row" style="grid-template-columns:1fr 1fr">
+        <input type="number" step="any" id="pk-attr-add-lat" placeholder="Latitud" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;outline:none">
+        <input type="number" step="any" id="pk-attr-add-lng" placeholder="Longitud" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;outline:none">
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="mbtn-ghost" onclick="pkCloseAddAttrModal()">Cancelar</button>
       <button class="mbtn-primary" onclick="pkAddAttraction()">Agregar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="locationModal">
+  <div class="modal-box">
+    <h2 id="pk-loc-title">Ubicación</h2>
+    <div class="drawer-sub" id="pk-loc-subtitle" style="margin-bottom:14px"></div>
+    <div class="mform-group">
+      <button type="button" class="mbtn-ghost" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:8px" onclick="pkLocSearchAuto()"><svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> Buscar automáticamente en Wikipedia</button>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input type="text" id="pk-loc-address" placeholder="o escribí una dirección…" style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;outline:none">
+        <button type="button" class="mbtn-ghost" onclick="pkLocSearchAddress()">Buscar</button>
+      </div>
+      <div class="pk-wiki-status" id="pk-loc-status"></div>
+    </div>
+    <div class="mform-group">
+      <label>Coordenadas</label>
+      <div class="wm-edit-row" style="grid-template-columns:1fr 1fr">
+        <input type="number" step="any" id="pk-loc-lat" placeholder="Latitud" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;outline:none">
+        <input type="number" step="any" id="pk-loc-lng" placeholder="Longitud" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 11px;outline:none">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn-ghost" onclick="pkCloseLocationModal()">Cancelar</button>
+      <button class="mbtn-primary" onclick="pkSaveLocation()">Guardar ubicación</button>
     </div>
   </div>
 </div>
