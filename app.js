@@ -1,3 +1,43 @@
+// ─── Set de íconos SVG (reemplaza los emojis nativos en el UI) ───
+// Íconos de línea consistentes (24x24, stroke=currentColor) para que la
+// navegación, categorías y estados se vean igual en iOS/Android/Windows,
+// en vez de depender del set de emoji de cada sistema operativo.
+const ICON_PATHS = {
+  bag:        '<path d="M6 2 4 8v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-2-6"/><path d="M4 8h16"/><path d="M9 12a3 3 0 0 0 6 0"/>',
+  utensils:   '<path d="M7 2v6a2 2 0 0 0 4 0V2"/><path d="M9 8v14"/><path d="M17 2c-1.5 0-3 1.5-3 4v4a2 2 0 0 0 2 2h1v10"/>',
+  cart:       '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M3 3h2l2.6 12.4A2 2 0 0 0 9.55 17H18a2 2 0 0 0 1.96-1.6L21.5 8H6"/>',
+  ferris:     '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.6"/><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8"/><path d="M12 20v2M8 22h8"/>',
+  gear:       '<circle cx="12" cy="12" r="3"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V19a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  pencil:     '<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/>',
+  calendar:   '<rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M16 2.5v4M8 2.5v4M3 9.5h18"/>',
+  home:       '<path d="M3 11 12 3l9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/>',
+  map:        '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/>',
+  castle:     '<path d="M3 21V9l3-2v3l3-2v-2l3 3 3-3v2l3-2v3l3 2v10Z"/><path d="M3 21h18"/><path d="M10 21v-5a2 2 0 0 1 4 0v5"/>',
+  clapper:    '<path d="M3 8.5 5 3l3.3 3-2 5.5Z"/><path d="M8.3 6 11.6 9l6.7-3.5-3.3-3Z"/><path d="M3 11h18v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/>',
+  shirt:      '<path d="M8 3 3 6l2 3 3-1.2V21h8V7.8L19 9l2-3-5-3-2 2h-4Z"/>',
+  pants:      '<path d="M6 2h12l1 8-2 12h-3l-1.5-11L11 22H8L6 10Z"/>',
+  dumbbell:   '<path d="M4 9v6M2 10.5v3M22 10.5v3M20 9v6M7 12h10"/><rect x="5.5" y="8" width="3" height="8" rx="1"/><rect x="15.5" y="8" width="3" height="8" rx="1"/>',
+  footprints: '<path d="M8 15c1.7 0 3-1 3-3 0-1.2-.7-2-1.4-3-.6-1-1-1.7-1-3a2.6 2.6 0 0 0-5.2 0c0 1 .3 1.6.8 2.5"/><path d="M4 21c0-1.7 1-3 3-3s3 1.3 3 3"/><path d="M16 12c-1.7 0-3-1-3-3 0-1.2.7-2 1.4-3 .6-1 1-1.7 1-3a2.6 2.6 0 0 1 5.2 0c0 1-.3 1.6-.8 2.5"/><path d="M13 18c0-1.7 1-3 3-3s3 1.3 3 3"/>',
+  backpack:   '<path d="M7 8V6a5 5 0 0 1 10 0v2"/><path d="M6 8h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z"/><path d="M9 12h6M9 16h6"/><path d="M9 8v-.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V8"/>',
+  bread:      '<path d="M4 12a5 5 0 0 1 5-6h6a5 5 0 0 1 5 6v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M9 12v6M12 12v6M15 12v6"/>',
+  egg:        '<path d="M12 22c4.4 0 7-3.6 7-8 0-6-4-12-7-12S5 8 5 14c0 4.4 2.6 8 7 8Z"/>',
+  drumstick:  '<path d="M12.5 11.5c2 2 5 1.5 7-.5 1.6-1.6 1.8-3.7.5-5s-3.4-1-5 .5c-2 2-2.5 5-.5 7Z"/><path d="M13 11 4 20a2 2 0 1 0 2.8 2.8L15 15"/><path d="M6 22c-1 0-1.8-.6-2-1.6"/>',
+  can:        '<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M6 9h12"/><path d="M9 4V2h6v2"/>',
+  snowflake:  '<path d="M12 2v20M4.9 6l14.2 12M4.9 18 19.1 6"/><path d="M8 3.5 12 6l4-2.5M8 20.5 12 18l4 2.5M3.4 8.7 6 12l-2.6 3.3M20.6 8.7 18 12l2.6 3.3"/>',
+  coffee:     '<path d="M4 8h13a3 3 0 0 1 0 6h-1"/><path d="M4 8v7a5 5 0 0 0 5 5h3a5 5 0 0 0 5-5V8"/><path d="M7 3.5c-.7.6-.7 1.4 0 2M11 3.5c-.7.6-.7 1.4 0 2"/>',
+  plane:      '<path d="M3.5 19 21 12 3.5 5l1.5 6.2L14 12l-9 .8Z"/>',
+  sparkles:   '<path d="M12 3l1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4Z"/><path d="M19 15l.7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7Z"/>',
+  dino:       '<path d="M4 20V13a5 5 0 0 1 5-5h1V6a2 2 0 0 1 2-2h3l2 3h1a2 2 0 0 1 2 2v3l2 1-2 1v1a3 3 0 0 1-3 3h-1v3h-3v-3h-3l-1 3H6l1-3a2 2 0 0 1-3-3Z"/><circle cx="15" cy="8" r=".6" fill="currentColor" stroke="none"/>',
+  masks:      '<path d="M4 5c3 0 4 2 4 4s-1 3-2 3-3-1.5-3-4a5 5 0 0 1 1-3Z"/><path d="M20 5c-3 0-4 2-4 4s1 3 2 3 3-1.5 3-4a5 5 0 0 0-1-3Z"/><path d="M8 13c1.3 3 3 5 4 5s2.7-2 4-5"/><path d="M7 8.3c.6.6.6 1.4 0 2M17 8.3c-.6.6-.6 1.4 0 2"/>',
+  globe:      '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a13.5 13.5 0 0 1 0 18 13.5 13.5 0 0 1 0-18Z"/>',
+  check:      '<path d="M20 6 9 17l-5-5"/>',
+  x:          '<path d="M18 6 6 18M6 6l12 12"/>',
+};
+function ic(name, size) {
+  const s = size || 16;
+  return `<svg class="icon" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
+}
+
 // Escapa texto de usuario antes de insertarlo en innerHTML (previene XSS).
 // Usar SIEMPRE que un valor escrito por alguien (nombre de producto, nota,
 // snack, comida, etc.) se inserte en un template literal destinado a innerHTML.
@@ -62,12 +102,12 @@ let outletSubTab = 'cronograma';
 let currentOutletDay = 0;
 const SHOPPING_KEY = 'outlets-shopping-list';
 const shopCats = [
-  { id:'remeras',       icon:'👕', title:'Remeras / T-Shirts' },
-  { id:'pantalones',    icon:'👖', title:'Pantalones / Jeans' },
-  { id:'ropa-deportiva',icon:'🏃', title:'Ropa Deportiva' },
-  { id:'calzado',       icon:'👟', title:'Calzado / Zapatillas' },
-  { id:'accesorios',    icon:'🎒', title:'Accesorios / Bolsos' },
-  { id:'varios',        icon:'🛍️', title:'Varios' },
+  { id:'remeras',       icon:'shirt', title:'Remeras / T-Shirts' },
+  { id:'pantalones',    icon:'pants', title:'Pantalones / Jeans' },
+  { id:'ropa-deportiva',icon:'dumbbell', title:'Ropa Deportiva' },
+  { id:'calzado',       icon:'footprints', title:'Calzado / Zapatillas' },
+  { id:'accesorios',    icon:'backpack', title:'Accesorios / Bolsos' },
+  { id:'varios',        icon:'bag', title:'Varios' },
 ];
 let shopItems = [];
 let shopChecked = new Set();
@@ -315,11 +355,11 @@ let mealData = [
 ];
 const mealNames = ["Desayuno","Almuerzo","Cena"];
 const typeConf = {
-  disney:    { label:"Disney 🏰",    cls:"mbadge-disney" },
-  universal: { label:"Universal 🎢", cls:"mbadge-universal" },
-  free:      { label:"Libre",        cls:"mbadge-free" },
-  arrival:   { label:"Llegada",      cls:"mbadge-arrival" },
-  walmart:   { label:"Walmart",      cls:"mbadge-walmart" },
+  disney:    { label:"Disney",    cls:"mbadge-disney",    icon:"castle" },
+  universal: { label:"Universal", cls:"mbadge-universal", icon:"clapper" },
+  free:      { label:"Libre",     cls:"mbadge-free",      icon:null },
+  arrival:   { label:"Llegada",   cls:"mbadge-arrival",   icon:"plane" },
+  walmart:   { label:"Walmart",   cls:"mbadge-walmart",   icon:"cart" },
 };
 
 function renderComidas() {
@@ -356,7 +396,7 @@ function renderComidas() {
           </div>
           <div class="meal-header-center">
             <div class="meal-day-title">${day.title}</div>
-            <span class="meal-day-badge ${tc.cls}">${tc.label}</span>
+            <span class="meal-day-badge ${tc.cls}">${tc.icon ? ic(tc.icon, 11) : ''}${tc.label}</span>
           </div>
           <div class="meal-preview">${dots}</div>
           <span class="meal-chevron">▾</span>
@@ -365,7 +405,7 @@ function renderComidas() {
           <div class="meals-stack">${mealsHtml}</div>
           <div class="meal-extras">
             <div class="snacks-row" id="msnacks-${day.id}">
-              <div class="snacks-row-label">🎒 Mochila / Snacks</div>
+              <div class="snacks-row-label">${ic('backpack',11)} Mochila / Snacks</div>
               <div class="snack-chips" id="msnack-list-${day.id}">
                 ${snackChips}
                 <button class="snack-chip-add" onclick="showSnackInputM(${day.id})">+ agregar</button>
@@ -644,13 +684,13 @@ const WM_CHECKED_KEY = 'walmart-orlando-checked-v2';
 const WM_OPEN_KEY = 'walmart-orlando-open-v2';
 
 const wmCatMeta = {
-  pan:       { icon:'🥖', title:'Panadería y Snacks' },
-  lacteos:   { icon:'🥚', title:'Lácteos y Huevos' },
-  carnes:    { icon:'🥩', title:'Carnes y Fiambres' },
-  secos:     { icon:'🍝', title:'Secos y Enlatados' },
-  congelados:{ icon:'🧊', title:'Congelados' },
-  desayuno:  { icon:'☕', title:'Desayuno y Bebidas' },
-  extras:    { icon:'🎒', title:'Extras' },
+  pan:       { icon:'bread', title:'Panadería y Snacks' },
+  lacteos:   { icon:'egg', title:'Lácteos y Huevos' },
+  carnes:    { icon:'drumstick', title:'Carnes y Fiambres' },
+  secos:     { icon:'can', title:'Secos y Enlatados' },
+  congelados:{ icon:'snowflake', title:'Congelados' },
+  desayuno:  { icon:'coffee', title:'Desayuno y Bebidas' },
+  extras:    { icon:'backpack', title:'Extras' },
 };
 
 window._setWmData = function(d) { wmData = d; };
@@ -897,7 +937,7 @@ function renderWalmart() {
     html += `
       <div class="wm-section ${isOpen?'open':''}" id="wmsec-${cat.id}">
         <div class="wm-section-header" onclick="wmToggleSection('${cat.id}')">
-          <span class="wm-section-icon">${meta.icon}</span>
+          <span class="wm-section-icon">${ic(meta.icon,16)}</span>
           <span class="wm-section-title">${meta.title}</span>
           <span class="wm-section-count">${catDone}/${cat.items.length}</span>
           <span class="wm-section-chevron">▾</span>
@@ -936,7 +976,7 @@ function renderWalmart() {
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <div class="wm-item-price">$${lineTotal}</div>
-              <button class="wm-icon-btn" onclick="wmStartEdit('${cat.id}','${item.id}',event)" title="Editar" aria-label="Editar ${escapeHtml(item.name)}">✏️</button>
+              <button class="wm-icon-btn" onclick="wmStartEdit('${cat.id}','${item.id}',event)" title="Editar" aria-label="Editar ${escapeHtml(item.name)}">${ic('pencil',13)}</button>
               <button class="wm-icon-btn wm-icon-del" onclick="wmDeleteItem('${cat.id}','${item.id}',event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(item.name)}">✕</button>
             </div>
           </div>`;
@@ -960,25 +1000,25 @@ const sectionMeta = {
   outlets: {
     title: 'Outlets',
     accent: 'Orlando',
-    subtitle: '🛍️ Cronograma de compras · 25–27 enero',
+    subtitle: 'Cronograma de compras · 25–27 enero',
     theme: 'theme-outlets'
   },
   comidas: {
     title: 'Orlando',
     accent: 'Meal Planning',
-    subtitle: '🍽️ Planificación de comidas · 17–28 enero',
+    subtitle: 'Planificación de comidas · 17–28 enero',
     theme: 'theme-comidas'
   },
   walmart: {
     title: 'Orlando',
     accent: 'Market',
-    subtitle: '🛒 Lista de compras · Walmart Supercenter',
+    subtitle: 'Lista de compras · Walmart Supercenter',
     theme: 'theme-walmart'
   },
   parques: {
     title: 'Orlando',
     accent: 'Theme Parks',
-    subtitle: '🎢 Tracker de atracciones · Disney & Universal',
+    subtitle: 'Tracker de atracciones · Disney & Universal',
     theme: 'theme-parques'
   }
 };
@@ -1049,8 +1089,8 @@ function renderOutlets() {
 
   let html = `<div class="outlets-panel">
     <div class="outlets-subtabs">
-      <button class="outlets-stab${outletSubTab==='cronograma'?' active':''}" onclick="switchOutletTab('cronograma')">📅 Cronograma</button>
-      <button class="outlets-stab${outletSubTab==='lista'?' active':''}" onclick="switchOutletTab('lista')">👕 Lista de Compras</button>
+      <button class="outlets-stab${outletSubTab==='cronograma'?' active':''}" onclick="switchOutletTab('cronograma')">${ic('calendar',13)} Cronograma</button>
+      <button class="outlets-stab${outletSubTab==='lista'?' active':''}" onclick="switchOutletTab('lista')">${ic('shirt',13)} Lista de Compras</button>
     </div>`;
 
   if (outletSubTab === 'cronograma') {
@@ -1107,14 +1147,14 @@ function renderDayContent(d) {
   let html = `
     <div class="hotel-bar" id="hotel-bar-${d}">
       <a href="${hotel.url}" style="display:flex;align-items:center;gap:10px;flex:1;text-decoration:none;min-width:0" onclick="event.stopPropagation()">
-        <div class="hotel-icon">🏠</div>
+        <div class="hotel-icon">${ic('home',16)}</div>
         <div class="hotel-info">
           <div class="hotel-label">Punto de partida</div>
           <div class="hotel-addr">${hotel.addr}</div>
         </div>
         <div class="hotel-arrow">↗</div>
       </a>
-      <button class="wm-icon-btn" onclick="openHotelEdit()" title="Editar dirección" aria-label="Editar punto de partida" style="flex-shrink:0;font-size:14px;opacity:0.4">✏️</button>
+      <button class="wm-icon-btn" onclick="openHotelEdit()" title="Editar dirección" aria-label="Editar punto de partida" style="flex-shrink:0;opacity:0.5">${ic('pencil',13)}</button>
     </div>`;
 
   // Editable day label
@@ -1129,7 +1169,7 @@ function renderDayContent(d) {
   } else {
     html += `<div class="day-label" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
       <span style="flex:1">${escapeHtml(day.label)}</span>
-      <button class="wm-icon-btn" onclick="stopStartEditLabel(${d});event.stopPropagation()" title="Editar descripción del día" style="flex-shrink:0">✏️</button>
+      <button class="wm-icon-btn" onclick="stopStartEditLabel(${d});event.stopPropagation()" title="Editar descripción del día" style="flex-shrink:0">${ic('pencil',13)}</button>
     </div>`;
   }
 
@@ -1147,7 +1187,7 @@ function renderDayContent(d) {
 
   if (allDone) {
     html += `<div class="all-done" style="display:block">
-      <div class="all-done-emoji">🛍️</div>
+      <div class="all-done-emoji">${ic('sparkles',44)}</div>
       <div class="all-done-title">¡Día completado!</div>
       <div class="all-done-sub">Visitaste las ${total} paradas del día.</div>
     </div>`;
@@ -1162,7 +1202,7 @@ function renderDayContent(d) {
       const badgeText = escapeHtml(s.badgeText || '');
       html += `
         <div class="stop-card" onclick="event.stopPropagation()" style="cursor:default;flex-direction:column;align-items:stretch">
-          <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--accent)">✏️ Editar parada</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;margin-bottom:10px;color:var(--accent);display:flex;align-items:center;gap:6px">${ic('pencil',13)} Editar parada</div>
           <div class="wm-edit-form" style="width:100%">
             <input class="wm-edit-input" id="stop-edit-name" placeholder="Nombre del lugar" value="${escapeHtml(s.name)}" style="margin-bottom:6px;width:100%">
             <textarea class="wm-edit-input" id="stop-edit-desc" placeholder="Descripción (horarios, tips…)" style="margin-bottom:6px;width:100%;min-height:56px;resize:vertical;font-family:'DM Sans',sans-serif;font-size:12px;line-height:1.4">${s.desc}</textarea>
@@ -1206,7 +1246,7 @@ function renderDayContent(d) {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
                   Maps
                 </a>` : ''}
-                <button class="wm-icon-btn stop-action-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada" aria-label="Editar ${escapeHtml(s.name)}">✏️</button>
+                <button class="wm-icon-btn stop-action-btn" onclick="stopStartEdit(${d},${i});event.stopPropagation()" title="Editar parada" aria-label="Editar ${escapeHtml(s.name)}">${ic('pencil',14)}</button>
                 <button class="wm-icon-btn wm-icon-del stop-action-btn" onclick="stopDelete(${d},${i},event)" title="Eliminar parada" aria-label="Eliminar ${escapeHtml(s.name)}">✕</button>
               </div>
             </div>
@@ -1248,7 +1288,7 @@ function renderDayContent(d) {
     html += `
       <div class="day-map-wrap" style="margin-top:14px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);">
         <div class="day-map-header" style="display:flex;align-items:center;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);">
-          <div class="day-map-title">🗺️ Mapa del día · ${stopsWithCoords.length} paradas</div>
+          <div class="day-map-title">${ic('map',13)} Mapa del día · ${stopsWithCoords.length} paradas</div>
         </div>
         <div id="day-map-container-${d}" class="day-map-container"></div>
       </div>`;
@@ -1510,8 +1550,8 @@ function renderShopList() {
 
   let html = `
   <div style="display:flex;gap:6px;margin-bottom:14px">
-    <button onclick="shopListTab='need';renderOutlets()" style="flex:1;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${isNeed?'var(--accent)':'var(--border2)'};background:${isNeed?'var(--accent)':'transparent'};color:${isNeed?'#fff':'var(--muted)'};font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✅ A comprar</button>
-    <button onclick="shopListTab='noneed';renderOutlets()" style="flex:1;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${!isNeed?'#ef4444':'var(--border2)'};background:${!isNeed?'rgba(239,68,68,0.12)':'transparent'};color:${!isNeed?'#ef4444':'var(--muted)'};font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">🚫 No necesito</button>
+    <button onclick="shopListTab='need';renderOutlets()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${isNeed?'var(--accent)':'var(--border2)'};background:${isNeed?'var(--accent)':'transparent'};color:${isNeed?'#fff':'var(--muted)'};font-family:'DM Sans',sans-serif;font-size:var(--fs-xs);font-weight:600;cursor:pointer;">${ic('check',13)} A comprar</button>
+    <button onclick="shopListTab='noneed';renderOutlets()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid ${!isNeed?'#ef4444':'var(--border2)'};background:${!isNeed?'rgba(239,68,68,0.12)':'transparent'};color:${!isNeed?'#ef4444':'var(--muted)'};font-family:'DM Sans',sans-serif;font-size:var(--fs-xs);font-weight:600;cursor:pointer;">${ic('x',13)} No necesito</button>
   </div>`;
 
   shopCats.forEach(cat => {
@@ -1522,7 +1562,7 @@ function renderShopList() {
 
     html += `<div class="wm-section${isOpen?' open':''}" id="shopsec-${cat.id}">
       <div class="wm-section-header" onclick="shopToggleSection('${cat.id}')">
-        <span class="wm-section-icon">${cat.icon}</span>
+        <span class="wm-section-icon">${ic(cat.icon,16)}</span>
         <span class="wm-section-title">${cat.title}</span>
         <span class="wm-section-count">${catDone}/${catItems.length}</span>
         <span class="wm-section-chevron">▾</span>
@@ -1533,7 +1573,7 @@ function renderShopList() {
       const isChecked = shopChecked.has(item.id);
       const isEditingThis = shopEditingItem === item.id;
       const pColor = prioColor[item.priority] || 'var(--muted)';
-      const moveLabel = isNeed ? '🚫' : '✅';
+      const moveLabel = ic(isNeed ? 'x' : 'check', 13);
       const moveTitle = isNeed ? 'Mover a No necesito' : 'Mover a A comprar';
 
       if (isEditingThis) {
@@ -1565,7 +1605,7 @@ function renderShopList() {
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
             <span style="width:8px;height:8px;border-radius:50%;background:${pColor};display:inline-block;flex-shrink:0" title="Prioridad ${item.priority}"></span>
             <button class="wm-icon-btn" onclick="shopMoveItem('${item.id}',event)" title="${moveTitle}" aria-label="${moveTitle}">${moveLabel}</button>
-            <button class="wm-icon-btn" onclick="shopStartEdit('${item.id}',event)" title="Editar" aria-label="Editar ${escapeHtml(item.name)}">✏️</button>
+            <button class="wm-icon-btn" onclick="shopStartEdit('${item.id}',event)" title="Editar" aria-label="Editar ${escapeHtml(item.name)}">${ic('pencil',13)}</button>
             <button class="wm-icon-btn wm-icon-del" onclick="shopDeleteItem('${item.id}',event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(item.name)}">✕</button>
           </div>
         </div>`;
@@ -1738,6 +1778,7 @@ function updateParquesCounter() {
   document.getElementById('global-counter').textContent = done + ' / ' + total;
 }
 
+const PARK_ICONS = { mk: 'castle', epcot: 'globe', hs: 'clapper', ioa: 'dino', usf: 'masks', epic: 'sparkles' };
 let pkFilter = 'all';
 let pkOpenCards = new Set(['mk','epcot','hs','ioa','usf','epic']);
 
@@ -2048,13 +2089,13 @@ async function pkResetAll() {
 }
 
 const pkFilterMeta = [
-  { id: 'all',  label: '🎡 Todos' },
-  { id: 'mk',   label: '🏰 Magic Kingdom' },
-  { id: 'epcot',label: '🌍 EPCOT' },
-  { id: 'hs',   label: '🎬 Hollywood Studios' },
-  { id: 'ioa',  label: '🦖 Islands of Adventure' },
-  { id: 'usf',  label: '🎭 Universal Studios' },
-  { id: 'epic', label: '✨ Epic Universe' },
+  { id: 'all',  label: 'Todos' },
+  { id: 'mk',   label: 'Magic Kingdom' },
+  { id: 'epcot',label: 'EPCOT' },
+  { id: 'hs',   label: 'Hollywood Studios' },
+  { id: 'ioa',  label: 'Islands of Adventure' },
+  { id: 'usf',  label: 'Universal Studios' },
+  { id: 'epic', label: 'Epic Universe' },
 ];
 
 // ─── PARK MAPS ─────────────────────────────────────────────
@@ -2217,7 +2258,7 @@ function renderParques() {
 
     html += `<div class="park-card ${park.cls}${!visible ? ' pk-hidden' : ''}${isOpen ? ' open' : ''}" id="pkcard-${park.id}">
       <div class="park-card-header" onclick="pkToggleCard('${park.id}')">
-        <span class="park-card-emoji">${park.emoji}</span>
+        <span class="park-card-emoji">${ic(PARK_ICONS[park.id] || 'ferris', 20)}</span>
         <div class="park-card-info">
           <div class="park-card-name">${park.name}</div>
           <div class="park-card-label">${park.label}</div>
@@ -2250,7 +2291,7 @@ function renderParques() {
       html += `
         <div class="day-map-wrap" id="pkmap-wrap-${park.id}" style="margin:0;border-radius:0 0 var(--radius) var(--radius);border-top:1px solid var(--border);border-left:none;border-right:none;border-bottom:none;">
           <div class="day-map-header" onclick="pkToggleParkMap('${park.id}')">
-            <div class="day-map-title">🗺️ Mapa · ${parkAttrsWithCoords.length} atracciones</div>
+            <div class="day-map-title">${ic('map',13)} Mapa · ${parkAttrsWithCoords.length} atracciones</div>
             <span class="day-map-chevron" id="pkmap-chev-${park.id}">▾</span>
           </div>
           <div id="pkmap-container-${park.id}" class="day-map-container" style="display:none;height:280px;"></div>
