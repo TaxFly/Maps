@@ -1,17 +1,33 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+// Proyecto de Firebase de TaxUSA/Taxfly — unificado (antes Maps tenía su
+// propio proyecto, orlando-planning-5c1e1). La colección 'orlando' queda
+// igual que antes; lo único que cambió es a qué proyecto apunta.
+// Requiere que en las reglas de Firestore de este proyecto exista:
+//   match /orlando/{document=**} { allow read, write: if true; }
 const firebaseConfig = {
-  apiKey: "AIzaSyCQ-JeQ5sHqv5PC-Md_Qfif3ulXOfyFubc",
-  authDomain: "orlando-planning-5c1e1.firebaseapp.com",
-  projectId: "orlando-planning-5c1e1",
-  storageBucket: "orlando-planning-5c1e1.firebasestorage.app",
-  messagingSenderId: "658373278539",
-  appId: "1:658373278539:web:83f019075c8f47555dc6ce"
+  apiKey: "AIzaSyA-eeKl8guVDmTa_NpYvkB0O7-RMbPrkP0",
+  authDomain: "viajes-db538.firebaseapp.com",
+  projectId: "viajes-db538",
+  storageBucket: "viajes-db538.firebasestorage.app",
+  messagingSenderId: "237311739178",
+  appId: "1:237311739178:web:333e468b184c0402a98a53"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+
+// ── Login compartido con Taxfly ─────────────────────────────────────
+// Mismo proyecto de Firebase, mismo origen (taxfly.github.io): la sesión
+// de Auth ya es compartida entre las dos apps automáticamente. Si venís
+// del botón de Taxfly, esto ya te va a encontrar logueado y ni se nota.
+// Si entrás directo a Maps sin sesión activa, te manda a loguearte a
+// Taxfly y, al terminar, te trae de vuelta acá.
+const TAXFLY_LOGIN_URL = 'https://taxfly.github.io/taxfly/login.html';
+const PENDING_REDIRECT_KEY = 'taxusa_pending_redirect';
 
 async function fbSet(docId, data) {
   try { await setDoc(doc(db, "orlando", docId), data, { merge: true }); }
@@ -56,6 +72,10 @@ function fbListen(docId, callback) {
 }
 
 window._fb = { fbSet, fbGet, fbListen, stableStringify };
+window._fbSignOut = async function() {
+  try { await signOut(auth); } catch(e) {}
+  window.location.replace(TAXFLY_LOGIN_URL);
+};
 
 async function startApp() {
   // El splash lindo de index.html ya está en pantalla desde el arranque;
@@ -188,4 +208,11 @@ async function startApp() {
   });
 }
 
-startApp();
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    startApp();
+  } else {
+    try { localStorage.setItem(PENDING_REDIRECT_KEY, location.href); } catch(e) {}
+    window.location.replace(TAXFLY_LOGIN_URL);
+  }
+});
