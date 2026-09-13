@@ -69,11 +69,12 @@ async function startApp() {
     fbGet('walmart'),
     fbGet('wmChecked'),
     fbGet('shopping'),
+    fbGet('packing'),
     fbGet('parques'),
   ]);
 
   const val = (r) => r.status === 'fulfilled' ? r.value : null;
-  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, parquesDataFb] = results.map(val);
+  const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, packingDataFb, parquesDataFb] = results.map(val);
 
   if (hotelData) window._hotelFromFb = hotelData;
   if (daysData && daysData.days) window._daysFromFb = daysData.days;
@@ -82,6 +83,7 @@ async function startApp() {
   if (wmDataFb && wmDataFb.data) window._wmDataFromFb = wmDataFb.data;
   if (wmCheckedFb && wmCheckedFb.checked) window._wmCheckedFromFb = wmCheckedFb.checked;
   if (shopDataFb) window._shopFromFb = shopDataFb;
+  if (packingDataFb) window._packingFromFb = packingDataFb;
   if (parquesDataFb && parquesDataFb.state) window._parquesFromFb = parquesDataFb.state;
 
   window._fbReady = true;
@@ -135,6 +137,13 @@ async function startApp() {
     if (data && data.items !== undefined && window._appInited) {
       window._shopFromFb = data;
       window._setShopData && window._setShopData(data);
+      window.renderOutlets && window.renderOutlets();
+    }
+  });
+  fbListen('packing', data => {
+    if (data && data.items !== undefined && window._appInited) {
+      window._packingFromFb = data;
+      window._setPackingData && window._setPackingData(data);
       window.renderOutlets && window.renderOutlets();
     }
   });

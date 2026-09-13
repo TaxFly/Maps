@@ -1,0 +1,15 @@
+{
+  "name": "Orlando Planning",
+  "short_name": "Orlando",
+  "description": "Cronograma de outlets, comidas, compras y parques para el viaje a Orlando",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    { "src": "favicon.png", "sizes": "128x128", "type": "image/png", "purpose": "any" },
+    { "src": "apple-touch-icon.png", "sizes": "128x128", "type": "image/png", "purpose": "maskable" }
+  ]
+}

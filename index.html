@@ -18,7 +18,9 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Orlando Planning">
+<meta name="theme-color" content="#0b1220">
 <title>Orlando Planning</title>
+<link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -26,6 +28,16 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script type="module" src="firebase-sync.js"></script>
+<script>
+// Registro del service worker — habilita instalar la app y que el
+// checklist funcione sin señal. Si falla (ej. abierta como file://),
+// la app sigue andando normal, solo sin el offline.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
 </head>
 <body class="theme-outlets">
 
@@ -363,6 +375,10 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
   </div>
 </div>
 <div class="mtoast" id="mtoast"></div>
+<div class="undo-toast" id="undoToast">
+  <span class="undo-toast-msg"></span>
+  <button class="undo-toast-btn" onclick="undoLastAction()">Deshacer</button>
+</div>
 
 <!-- Custom confirm/alert modal -->
 <div class="confirm-overlay" id="confirmOverlay">
@@ -462,6 +478,34 @@ function devError(...args) { if (window.DEBUG) console.error(...args); }
     <div class="modal-actions">
       <button class="mbtn-ghost" onclick="shopCloseAddModal()">Cancelar</button>
       <button class="mbtn-primary" onclick="shopAddItem()">Agregar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="packingAddModal">
+  <div class="modal-box">
+    <h2>Agregar cosa a la valija</h2>
+    <div class="mform-group">
+      <label>¿Qué hay que llevar?</label>
+      <input type="text" id="packing-add-name" placeholder="ej: Cargador de celular" oninput="this.classList.remove('error');document.getElementById('packing-add-name-err').classList.remove('show')">
+      <div class="field-error" id="packing-add-name-err">Escribí qué hay que llevar</div>
+    </div>
+    <div class="mform-group">
+      <label>Categoría</label>
+      <select id="packing-add-cat">
+        <option value="documentos">Documentos</option>
+        <option value="ropa">Ropa</option>
+        <option value="higiene">Higiene y Sol</option>
+        <option value="electronica">Electrónica</option>
+        <option value="varios" selected>Varios</option>
+      </select>
+    </div>
+    <div class="mform-group">
+      <label>Cantidad</label>
+      <input type="number" id="packing-add-qty" placeholder="1" min="1" step="1" value="1">
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn-ghost" onclick="packingCloseAddModal()">Cancelar</button>
+      <button class="mbtn-primary" onclick="packingAddItem()">Agregar</button>
     </div>
   </div>
 </div>

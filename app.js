@@ -32,6 +32,10 @@ const ICON_PATHS = {
   globe:      '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a13.5 13.5 0 0 1 0 18 13.5 13.5 0 0 1 0-18Z"/>',
   check:      '<path d="M20 6 9 17l-5-5"/>',
   x:          '<path d="M18 6 6 18M6 6l12 12"/>',
+  search:     '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  droplet:    '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/>',
+  file:       '<path d="M7 2h7l5 5v13a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5.5 20V3.5A1.5 1.5 0 0 1 7 2Z"/><path d="M14 2v5h5"/>',
+  plug:       '<path d="M9 3v4M15 3v4M6.5 7h11l-1 6a6 6 0 0 1-9 0Z"/><path d="M12 17v4"/>',
 };
 function ic(name, size) {
   const s = size || 16;
@@ -114,6 +118,158 @@ let shopChecked = new Set();
 let shopEditingItem = null;
 let shopOpenSections = new Set(['remeras','calzado']);
 let shopListTab = 'need'; // 'need' | 'noneed'
+
+// ─── VALIJA (packing list) — mismo patrón que la lista de compras, pero
+// para lo que hay que llevar de casa antes de viajar. ───
+const PACKING_KEY = 'outlets-packing-list';
+const packingCats = [
+  { id:'documentos', icon:'file',   title:'Documentos' },
+  { id:'ropa',       icon:'shirt',  title:'Ropa' },
+  { id:'higiene',    icon:'droplet',title:'Higiene y Sol' },
+  { id:'electronica',icon:'plug',   title:'Electrónica' },
+  { id:'varios',     icon:'backpack', title:'Varios' },
+];
+let packingItems = [];
+let packingChecked = new Set();
+let packingOpenSections = new Set(['documentos']);
+
+function getDefaultPackingItems() {
+  return [
+    { id:'pk1', catId:'documentos', name:'Pasaporte', qty:1 },
+    { id:'pk2', catId:'documentos', name:'Reservas de hotel y vuelos impresas', qty:1 },
+    { id:'pk3', catId:'documentos', name:'Tarjeta de crédito / débito internacional', qty:1 },
+    { id:'pk4', catId:'ropa', name:'Ropa liviana (shorts, remeras)', qty:1 },
+    { id:'pk5', catId:'ropa', name:'Traje de baño', qty:1 },
+    { id:'pk6', catId:'higiene', name:'Protector solar', qty:1 },
+    { id:'pk7', catId:'higiene', name:'Repelente de insectos', qty:1 },
+    { id:'pk8', catId:'electronica', name:'Cargador de celular', qty:1 },
+    { id:'pk9', catId:'electronica', name:'Adaptador de enchufe (EE.UU.)', qty:1 },
+    { id:'pk10', catId:'electronica', name:'Power bank', qty:1 },
+    { id:'pk11', catId:'varios', name:'Mochila de día', qty:1 },
+  ];
+}
+function packingSave() {
+  const payload = { items: packingItems, checked: [...packingChecked] };
+  syncedSave(PACKING_KEY, payload, 'packing', payload);
+}
+function packingLoad() {
+  const fbValue = (window._packingFromFb) ? window._packingFromFb : undefined;
+  const d = syncedLoad(PACKING_KEY, fbValue);
+  packingItems = d?.items || getDefaultPackingItems();
+  packingChecked = new Set(d?.checked || []);
+}
+function packingGetItem(id) { return packingItems.find(i => i.id === id); }
+
+function renderPacking() {
+  let html = `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+    <button class="wm-reset-btn" onclick="packingOpenAddModal()">+ Agregar cosa</button>
+  </div>`;
+  const total = packingItems.length;
+  const done = packingItems.filter(i => packingChecked.has(i.id)).length;
+  const pct = total > 0 ? Math.round(done / total * 100) : 0;
+  html += `<div class="wm-total-bar">
+    <span class="wm-total-label">Empacado</span>
+    <span class="wm-total-val">${done} / ${total}</span>
+  </div>
+  <div class="wm-progress-bar-bg"><div class="wm-progress-bar-fill" style="width:${pct}%"></div></div>`;
+
+  packingCats.forEach(cat => {
+    const catItems = packingItems.filter(i => i.catId === cat.id);
+    if (catItems.length === 0) return;
+    const catDone = catItems.filter(i => packingChecked.has(i.id)).length;
+    const isOpen = packingOpenSections.has(cat.id);
+
+    html += `<div class="wm-section${isOpen ? ' open' : ''}" id="packingsec-${cat.id}">
+      <div class="wm-section-header" onclick="packingToggleSection('${cat.id}')">
+        <span class="wm-section-icon">${ic(cat.icon, 16)}</span>
+        <span class="wm-section-title">${cat.title}</span>
+        <span class="wm-section-count">${catDone}/${catItems.length}</span>
+        <span class="wm-section-chevron">▾</span>
+      </div>
+      <div class="wm-items">`;
+
+    catItems.forEach(item => {
+      const isChecked = packingChecked.has(item.id);
+      html += `<div class="wm-item${isChecked ? ' checked' : ''}" onclick="packingToggle('${item.id}')">
+        <div class="wm-check">${isChecked ? '✓' : ''}</div>
+        <div class="wm-item-body">
+          <div class="wm-item-name">${escapeHtml(item.name)}${item.qty > 1 ? ` ×${item.qty}` : ''}</div>
+        </div>
+        <button class="wm-icon-btn wm-icon-del" onclick="packingDeleteItem('${item.id}',event)" title="Eliminar" aria-label="Eliminar ${escapeHtml(item.name)}">${ic('x', 13)}</button>
+      </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  html += `<div style="display:flex;gap:8px;margin-top:14px;justify-content:center">
+    <button class="wm-reset-btn" onclick="packingReset()">↺ Reiniciar checks</button>
+  </div>`;
+  return html;
+}
+
+function packingToggleSection(catId) {
+  if (packingOpenSections.has(catId)) packingOpenSections.delete(catId);
+  else packingOpenSections.add(catId);
+  renderOutlets();
+}
+function packingToggle(id) {
+  if (packingChecked.has(id)) packingChecked.delete(id);
+  else packingChecked.add(id);
+  packingSave();
+  renderOutlets();
+}
+function packingDeleteItem(id, e) {
+  e && e.stopPropagation();
+  const idx = packingItems.findIndex(i => i.id === id);
+  if (idx === -1) return;
+  const [removed] = packingItems.splice(idx, 1);
+  const wasChecked = packingChecked.has(id);
+  packingChecked.delete(id);
+  packingSave();
+  renderOutlets();
+  showUndoToast(`"${removed.name}" eliminado`, () => {
+    packingItems.splice(idx, 0, removed);
+    if (wasChecked) packingChecked.add(id);
+    packingSave();
+    renderOutlets();
+  });
+}
+async function packingReset() {
+  const ok = await showConfirm('Se van a desmarcar todas las cosas empacadas.', '¿Reiniciar checks?', 'Reiniciar', true);
+  if (!ok) return;
+  packingChecked.clear();
+  packingSave();
+  renderOutlets();
+}
+function packingOpenAddModal() {
+  document.getElementById('packing-add-name').value = '';
+  document.getElementById('packing-add-qty').value = '1';
+  document.getElementById('packing-add-name-err').classList.remove('show');
+  document.getElementById('packing-add-name').classList.remove('error');
+  document.getElementById('packingAddModal').classList.add('open');
+}
+function packingCloseAddModal() {
+  document.getElementById('packingAddModal').classList.remove('open');
+}
+function packingAddItem() {
+  const nameEl = document.getElementById('packing-add-name');
+  const name = nameEl.value.trim();
+  if (!name) {
+    nameEl.classList.add('error');
+    document.getElementById('packing-add-name-err').classList.add('show');
+    return;
+  }
+  const catId = document.getElementById('packing-add-cat').value;
+  const qty = parseFloat(document.getElementById('packing-add-qty').value) || 1;
+  const newItem = { id: 'pk' + Date.now(), catId, name, qty };
+  packingItems.push(newItem);
+  packingOpenSections.add(catId);
+  packingSave();
+  packingCloseAddModal();
+  renderOutlets();
+  showMToast('Agregado a la valija');
+}
 
 // Incrementar este número cada vez que se corrijan coordenadas o paradas
 const DAYS_VERSION = 2;
@@ -282,6 +438,7 @@ window._appInit = function() {
   mealLoad();
   wmLoad();
   shopLoad();
+  packingLoad();
   parquesLoad();
   renderOutlets();
   updateGlobal();
@@ -603,6 +760,30 @@ function showMToast(msg) {
   _toastEl._timer = setTimeout(() => _toastEl.classList.remove('show'), 2000);
 }
 
+// ─── DESHACER (en vez de pedir confirmación antes de borrar) ───────
+// Los borrados de un solo ítem (parada, producto, prenda, cosa de la
+// valija) se ejecutan al toque y ofrecen 4s para deshacer, en vez de
+// interrumpir con un modal de confirmación antes de borrar.
+let _undoTimer = null;
+let _undoAction = null;
+function showUndoToast(message, undoFn) {
+  if (_undoTimer) { clearTimeout(_undoTimer); _undoTimer = null; }
+  _undoAction = undoFn;
+  const el = document.getElementById('undoToast');
+  if (!el) return;
+  el.querySelector('.undo-toast-msg').textContent = message;
+  el.classList.add('show');
+  _undoTimer = setTimeout(() => { el.classList.remove('show'); _undoAction = null; }, 4000);
+}
+function undoLastAction() {
+  if (_undoTimer) { clearTimeout(_undoTimer); _undoTimer = null; }
+  const el = document.getElementById('undoToast');
+  if (el) el.classList.remove('show');
+  const action = _undoAction;
+  _undoAction = null;
+  if (action) action();
+}
+
 // ─── SYNC DOT ────────────────────────────────────────────────
 let _syncTimer = null;
 function syncDotState(state) {
@@ -697,6 +878,10 @@ window._setWmData = function(d) { wmData = d; };
 window._setShopData = function(d) {
   if (d.items !== undefined) shopItems = d.items;
   if (d.checked !== undefined) shopChecked = new Set(d.checked);
+};
+window._setPackingData = function(d) {
+  if (d.items !== undefined) packingItems = d.items;
+  if (d.checked !== undefined) packingChecked = new Set(d.checked);
 };
 let wmData = [
   { id:'pan', items:[
@@ -821,16 +1006,22 @@ function wmToggleSection(catId) {
   renderWalmart();
 }
 
-async function wmDeleteItem(catId, itemId, e) {
+function wmDeleteItem(catId, itemId, e) {
   e.stopPropagation();
-  const ok = await showConfirm('¿Eliminar este producto de la lista?', '¿Eliminar producto?', 'Eliminar');
-  if (!ok) return;
   const cat = wmGetCat(catId);
-  cat.items = cat.items.filter(i => i.id !== itemId);
+  const idx = cat.items.findIndex(i => i.id === itemId);
+  if (idx === -1) return;
+  const [removed] = cat.items.splice(idx, 1);
+  const wasChecked = wmChecked.has(itemId);
   wmChecked.delete(itemId);
   wmSave();
   renderWalmart();
-  showMToast('Producto eliminado');
+  showUndoToast(`"${removed.name}" eliminado`, () => {
+    cat.items.splice(idx, 0, removed);
+    if (wasChecked) wmChecked.add(itemId);
+    wmSave();
+    renderWalmart();
+  });
 }
 
 function wmStartEdit(catId, itemId, e) {
@@ -1000,25 +1191,25 @@ const sectionMeta = {
   outlets: {
     title: 'Outlets',
     accent: 'Orlando',
-    subtitle: 'Cronograma de compras · 25–27 enero',
+    subtitle: 'Cronograma de compras',
     theme: 'theme-outlets'
   },
   comidas: {
     title: 'Orlando',
     accent: 'Meal Planning',
-    subtitle: 'Planificación de comidas · 17–28 enero',
+    subtitle: 'Planificación de comidas',
     theme: 'theme-comidas'
   },
   walmart: {
     title: 'Orlando',
     accent: 'Market',
-    subtitle: 'Lista de compras · Walmart Supercenter',
+    subtitle: 'Lista de compras',
     theme: 'theme-walmart'
   },
   parques: {
     title: 'Orlando',
     accent: 'Theme Parks',
-    subtitle: 'Tracker de atracciones · Disney & Universal',
+    subtitle: 'Tracker de atracciones',
     theme: 'theme-parques'
   }
 };
@@ -1090,7 +1281,8 @@ function renderOutlets() {
   let html = `<div class="outlets-panel">
     <div class="outlets-subtabs">
       <button class="outlets-stab${outletSubTab==='cronograma'?' active':''}" onclick="switchOutletTab('cronograma')">${ic('calendar',13)} Cronograma</button>
-      <button class="outlets-stab${outletSubTab==='lista'?' active':''}" onclick="switchOutletTab('lista')">${ic('shirt',13)} Lista de Compras</button>
+      <button class="outlets-stab${outletSubTab==='lista'?' active':''}" onclick="switchOutletTab('lista')">${ic('shirt',13)} Compras</button>
+      <button class="outlets-stab${outletSubTab==='valija'?' active':''}" onclick="switchOutletTab('valija')">${ic('backpack',13)} Valija</button>
     </div>`;
 
   if (outletSubTab === 'cronograma') {
@@ -1102,6 +1294,8 @@ function renderOutlets() {
     html += `<div class="outlets-day-content">`;
     html += renderDayContent(currentDay);
     html += `</div>`;
+  } else if (outletSubTab === 'valija') {
+    html += renderPacking();
   } else {
     // Shopping list
     html += renderShopList();
@@ -1413,19 +1607,28 @@ function stopSaveDayLabel(dayIdx) {
   renderOutlets();
   showMToast('Descripción guardada ✓');
 }
-async function stopDelete(dayIdx, stopIdx, e) {
+function stopDelete(dayIdx, stopIdx, e) {
   e && e.stopPropagation();
-  const ok = await showConfirm('¿Eliminar esta parada del cronograma?', '¿Eliminar parada?', 'Eliminar');
-  if (!ok) return;
-  days[dayIdx].stops.splice(stopIdx, 1);
+  const [removed] = days[dayIdx].stops.splice(stopIdx, 1);
   // Rebuild visited set for this day to avoid index gaps
+  const oldVisited = visited[dayIdx];
+  const wasVisited = oldVisited.has(stopIdx);
   const newVisited = new Set();
-  [...visited[dayIdx]].forEach(idx => { if (idx < stopIdx) newVisited.add(idx); else if (idx > stopIdx) newVisited.add(idx - 1); });
+  [...oldVisited].forEach(idx => { if (idx < stopIdx) newVisited.add(idx); else if (idx > stopIdx) newVisited.add(idx - 1); });
   visited[dayIdx] = newVisited;
   saveState();
   renderOutlets();
   updateGlobal();
-  showMToast('Parada eliminada');
+  showUndoToast(`"${removed.name}" eliminada`, () => {
+    days[dayIdx].stops.splice(stopIdx, 0, removed);
+    const restored = new Set();
+    [...visited[dayIdx]].forEach(idx => restored.add(idx >= stopIdx ? idx + 1 : idx));
+    if (wasVisited) restored.add(stopIdx);
+    visited[dayIdx] = restored;
+    saveState();
+    renderOutlets();
+    updateGlobal();
+  });
 }
 function stopStartAdd(dayIdx) {
   stopAddingDay = dayIdx;
@@ -1672,14 +1875,21 @@ function shopSaveEdit(id) {
   renderOutlets();
   showMToast('Guardado ✓');
 }
-async function shopDeleteItem(id, e) {
+function shopDeleteItem(id, e) {
   e && e.stopPropagation();
-  const ok = await showConfirm('¿Eliminar esta prenda de la lista?', '¿Eliminar ítem?', 'Eliminar');
-  if (!ok) return;
-  shopItems = shopItems.filter(i => i.id !== id);
+  const idx = shopItems.findIndex(i => i.id === id);
+  if (idx === -1) return;
+  const [removed] = shopItems.splice(idx, 1);
+  const wasChecked = shopChecked.has(id);
   shopChecked.delete(id);
   shopSave();
   renderOutlets();
+  showUndoToast(`"${removed.name}" eliminado`, () => {
+    shopItems.splice(idx, 0, removed);
+    if (wasChecked) shopChecked.add(id);
+    shopSave();
+    renderOutlets();
+  });
 }
 async function shopReset() {
   const ok = await showConfirm('Se van a desmarcar todas las prendas compradas.', '¿Reiniciar checks?', 'Reiniciar', true);
@@ -1780,6 +1990,8 @@ function updateParquesCounter() {
 
 const PARK_ICONS = { mk: 'castle', epcot: 'globe', hs: 'clapper', ioa: 'dino', usf: 'masks', epic: 'sparkles' };
 let pkFilter = 'all';
+let pkSearchQuery = '';
+function pkNorm(s) { return (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 let pkOpenCards = new Set(['mk','epcot','hs','ioa','usf','epic']);
 
 const PARKS_DATA = [
@@ -2079,6 +2291,54 @@ function pkSetFilter(id) {
   renderParques();
 }
 
+// Filtra en vivo sobre el DOM ya renderizado (sin volver a llamar a
+// renderParques) para no perder el foco del input en cada letra que se
+// escribe. Al limpiar la búsqueda, todo vuelve al estado de apertura que
+// tenían las cards antes de buscar (pkOpenCards).
+function pkApplySearch(value) {
+  pkSearchQuery = value;
+  const q = pkNorm(value);
+  document.querySelectorAll('.park-card').forEach(card => {
+    const parkId = card.id.replace('pkcard-', '');
+    const passesFilter = pkFilter === 'all' || pkFilter === parkId;
+    let anyMatch = false;
+    card.querySelectorAll('.park-attr-item').forEach(item => {
+      const match = !q || (item.dataset.name || '').includes(q);
+      item.style.display = match ? '' : 'none';
+      if (match) anyMatch = true;
+    });
+    card.querySelectorAll('.park-zone-title').forEach(title => {
+      let el = title.nextElementSibling;
+      let zoneHasMatch = false;
+      while (el && el.classList.contains('park-attr-item')) {
+        if (el.style.display !== 'none') zoneHasMatch = true;
+        el = el.nextElementSibling;
+      }
+      title.style.display = (!q || zoneHasMatch) ? '' : 'none';
+    });
+    card.classList.toggle('pk-hidden', !passesFilter || (!!q && !anyMatch));
+    if (q) {
+      if (anyMatch) card.classList.add('open');
+    } else {
+      card.classList.toggle('open', pkOpenCards.has(parkId));
+    }
+  });
+  const clearBtn = document.querySelector('.parques-search-clear');
+  const wrap = document.querySelector('.parques-search-wrap');
+  if (wrap) wrap.classList.toggle('has-value', !!value);
+  if (!clearBtn && value) {
+    // Se agrega el botón de borrar sin re-renderizar todo el panel.
+    const btn = document.createElement('button');
+    btn.className = 'parques-search-clear';
+    btn.setAttribute('aria-label', 'Borrar búsqueda');
+    btn.innerHTML = ic('x', 13);
+    btn.onclick = () => { document.getElementById('pkSearchInput').value = ''; pkApplySearch(''); };
+    wrap && wrap.appendChild(btn);
+  } else if (clearBtn && !value) {
+    clearBtn.remove();
+  }
+}
+
 async function pkResetAll() {
   const ok = await showConfirm('Se va a borrar todo el progreso de atracciones. ¿Confirmás?', '¿Reiniciar Parques?', 'Reiniciar', true);
   if (!ok) return;
@@ -2243,6 +2503,11 @@ function renderParques() {
         <div class="parques-prog-bg"><div class="parques-prog-fill" style="width:${gPct}%"></div></div>
       </div>
     </div>
+    <div class="parques-search-wrap">
+      ${ic('search', 15)}
+      <input type="text" class="parques-search-input" id="pkSearchInput" placeholder="Buscar una atracción…" value="${escapeHtml(pkSearchQuery)}" oninput="pkApplySearch(this.value)">
+      ${pkSearchQuery ? `<button class="parques-search-clear" onclick="document.getElementById('pkSearchInput').value='';pkApplySearch('')" aria-label="Borrar búsqueda">${ic('x', 13)}</button>` : ''}
+    </div>
     <div class="parques-filter-bar">`;
 
   pkFilterMeta.forEach(f => {
@@ -2254,9 +2519,11 @@ function renderParques() {
     const visible = pkFilter === 'all' || pkFilter === park.id;
     const { done, total } = pkCountPark(park);
     const pct = total > 0 ? Math.round(done / total * 100) : 0;
-    const isOpen = pkOpenCards.has(park.id);
+    const q = pkNorm(pkSearchQuery);
+    const parkMatches = !q || park.zones.some(z => z.attractions.some(a => pkNorm(a.name).includes(q)));
+    const isOpen = pkOpenCards.has(park.id) || (!!q && parkMatches);
 
-    html += `<div class="park-card ${park.cls}${!visible ? ' pk-hidden' : ''}${isOpen ? ' open' : ''}" id="pkcard-${park.id}">
+    html += `<div class="park-card ${park.cls}${(!visible || (q && !parkMatches)) ? ' pk-hidden' : ''}${isOpen ? ' open' : ''}" id="pkcard-${park.id}">
       <div class="park-card-header" onclick="pkToggleCard('${park.id}')">
         <span class="park-card-emoji">${ic(PARK_ICONS[park.id] || 'ferris', 20)}</span>
         <div class="park-card-info">
@@ -2272,10 +2539,12 @@ function renderParques() {
       <div class="park-card-body">`;
 
     park.zones.forEach((zone, zi) => {
-      html += `<div class="park-zone-title">${zone.name}</div>`;
+      const zoneMatches = !q || zone.attractions.some(a => pkNorm(a.name).includes(q));
+      html += `<div class="park-zone-title"${zoneMatches ? '' : ' style="display:none"'}>${zone.name}</div>`;
       zone.attractions.forEach((attr, ai) => {
         const done = pkDone(park.id, zi, ai);
-        html += `<div class="park-attr-item${done ? ' pk-done' : ''}" onclick="toggleAttraction('${park.id}',${zi},${ai})">
+        const itemMatches = !q || pkNorm(attr.name).includes(q);
+        html += `<div class="park-attr-item${done ? ' pk-done' : ''}" data-name="${escapeHtml(pkNorm(attr.name))}"${itemMatches ? '' : ' style="display:none"'} onclick="toggleAttraction('${park.id}',${zi},${ai})">
           <div class="park-attr-check">${done ? '✓' : ''}</div>
           <div class="park-attr-body">
             <div class="park-attr-name">${attr.name}</div>

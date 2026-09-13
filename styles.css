@@ -350,7 +350,7 @@ body {
   transform: translateY(-50%);
   width: 72px; height: 72px;
   background: var(--theme-accent);
-  opacity: .05;
+  opacity: .08;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
   -webkit-mask-position: center; mask-position: center;
   -webkit-mask-size: contain; mask-size: contain;
@@ -870,6 +870,38 @@ body {
   white-space: nowrap;
 }
 .mtoast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.undo-toast {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 10px 10px 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: var(--fs-xs);
+  color: var(--text);
+  opacity: 0;
+  transition: all .3s;
+  z-index: 400;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: var(--shadow-lg);
+}
+.undo-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.undo-toast-btn {
+  background: none;
+  border: none;
+  color: var(--theme-accent);
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
+}
 
 /* OUTLETS SUB-TABS */
 .outlets-panel { padding: 0 0 16px; }
@@ -1045,6 +1077,36 @@ body.theme-parques .global-counter { color: #8b5cf6; border-color: rgba(139,92,2
   border-radius: 2px;
   transition: width .4s cubic-bezier(.4,0,.2,1);
 }
+.parques-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  box-shadow: var(--shadow);
+}
+.parques-search-wrap:focus-within { border-color: #8b5cf6; color: #8b5cf6; }
+.parques-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: var(--fs-xs);
+}
+.parques-search-input::placeholder { color: var(--muted); }
+.parques-search-clear {
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  padding: 2px; border-radius: 6px; flex-shrink: 0;
+}
+.parques-search-clear:hover { color: var(--text); background: var(--surface2); }
 .parques-filter-bar {
   display: flex;
   gap: 6px;
