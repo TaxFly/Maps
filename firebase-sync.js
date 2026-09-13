@@ -3,10 +3,7 @@ import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstat
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // Proyecto de Firebase de TaxUSA/Taxfly — unificado (antes Maps tenía su
-// propio proyecto, orlando-planning-5c1e1). La colección 'orlando' queda
-// igual que antes; lo único que cambió es a qué proyecto apunta.
-// Requiere que en las reglas de Firestore de este proyecto exista:
-//   match /orlando/{document=**} { allow read, write: if true; }
+// propio proyecto, orlando-planning-5c1e1).
 const firebaseConfig = {
   apiKey: "AIzaSyA-eeKl8guVDmTa_NpYvkB0O7-RMbPrkP0",
   authDomain: "viajes-db538.firebaseapp.com",
@@ -20,23 +17,32 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// ── Login compartido con Taxfly ─────────────────────────────────────
+// ── Login + perfil compartido con Taxfly ────────────────────────────
 // Mismo proyecto de Firebase, mismo origen (taxfly.github.io): la sesión
-// de Auth ya es compartida entre las dos apps automáticamente. Si venís
-// del botón de Taxfly, esto ya te va a encontrar logueado y ni se nota.
-// Si entrás directo a Maps sin sesión activa, te manda a loguearte a
-// Taxfly y, al terminar, te trae de vuelta acá.
+// de Auth ya es compartida entre las dos apps automáticamente. Cada
+// perfil de Taxfly tiene SU PROPIO Maps — los datos viven bajo
+// usuarios/{uid}/perfiles/{perfilId}/orlando/{docId}, igual que Gastos o
+// Actividades. Si venís del botón de Taxfly ya logueado con un perfil
+// elegido, esto ni se nota. Si falta login o perfil, te manda a
+// resolverlo a Taxfly y te trae de vuelta acá al terminar.
 const TAXFLY_LOGIN_URL = 'https://taxfly.github.io/taxfly/login.html';
+const TAXFLY_PROFILES_URL = 'https://taxfly.github.io/taxfly/profiles.html';
 const PENDING_REDIRECT_KEY = 'taxusa_pending_redirect';
 
+let currentUid = null;
+let currentPerfilId = null;
+function orlandoDocRef(docId) {
+  return doc(db, 'usuarios', currentUid, 'perfiles', currentPerfilId, 'orlando', docId);
+}
+
 async function fbSet(docId, data) {
-  try { await setDoc(doc(db, "orlando", docId), data, { merge: true }); }
+  try { await setDoc(orlandoDocRef(docId), data, { merge: true }); }
   catch(e) { devError("fbSet error", e); }
 }
 
 async function fbGet(docId) {
   try {
-    const snap = await getDoc(doc(db, "orlando", docId));
+    const snap = await getDoc(orlandoDocRef(docId));
     return snap.exists() ? snap.data() : null;
   } catch(e) { devError("fbGet error", e); return null; }
 }
@@ -58,7 +64,7 @@ function stableStringify(v) {
 // de los dos cambios probablemente se perdió.
 const CONFLICT_WINDOW_MS = 6000;
 function fbListen(docId, callback) {
-  return onSnapshot(doc(db, "orlando", docId), snap => {
+  return onSnapshot(orlandoDocRef(docId), snap => {
     if (!snap.exists()) return;
     const data = snap.data();
     const log = window._syncedWriteLog && window._syncedWriteLog[docId];
@@ -209,10 +215,21 @@ async function startApp() {
 }
 
 onAuthStateChanged(auth, (user) => {
-  if (user) {
-    startApp();
-  } else {
+  if (!user) {
     try { localStorage.setItem(PENDING_REDIRECT_KEY, location.href); } catch(e) {}
     window.location.replace(TAXFLY_LOGIN_URL);
+    return;
   }
+  // Mismo storage que Taxfly (mismo origen): así sabemos qué perfil está
+  // activo sin pedirle nada al usuario.
+  let perfilId = null;
+  try { perfilId = localStorage.getItem('perfilActivoId'); } catch(e) {}
+  if (!perfilId) {
+    try { localStorage.setItem(PENDING_REDIRECT_KEY, location.href); } catch(e) {}
+    window.location.replace(TAXFLY_PROFILES_URL);
+    return;
+  }
+  currentUid = user.uid;
+  currentPerfilId = perfilId;
+  startApp();
 });
