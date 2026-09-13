@@ -68,7 +68,14 @@ self.addEventListener('fetch', (event) => {
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(req).then((res) => {
-        if (res && res.ok) caches.open(CACHE_NAME).then((c) => c.put(req, res.clone()));
+        // Clonar YA, antes de devolver la respuesta: si se clona más
+        // tarde (ej. dentro de otro .then), el navegador puede haber
+        // empezado a consumir el body y el clone() falla ("Response
+        // body is already used").
+        if (res && res.ok) {
+          const resToCache = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(req, resToCache));
+        }
         return res;
       }).catch(() => caches.match(req))
     );
@@ -101,7 +108,8 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(req).then((res) => {
       if (res && (res.ok || res.type === 'opaque')) {
-        caches.open(CACHE_NAME).then((c) => c.put(req, res.clone()));
+        const resToCache = res.clone();
+        caches.open(CACHE_NAME).then((c) => c.put(req, resToCache));
       }
       return res;
     }).catch(() => caches.match(req))

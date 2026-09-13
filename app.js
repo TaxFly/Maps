@@ -66,8 +66,20 @@ function escapeHtml(str) {
 // casi al mismo tiempo. Ver comentario junto a CONFLICT_WINDOW_MS.
 window._syncedWriteLog = window._syncedWriteLog || {};
 
+// Todas las keys de localStorage de datos del viaje (hotel, outlets,
+// comidas, walmart, presupuesto, parques...) pasan por acá para quedar
+// separadas por perfil DENTRO DEL MISMO NAVEGADOR. Sin esto, Firestore
+// separa bien por perfil, pero mientras esos datos todavía no llegaron,
+// la app cae de vuelta al cache local como "pintado rápido" — y si ese
+// cache no está separado por perfil, un perfil nuevo ve por un instante
+// (o de forma permanente si Firestore también viene vacío) los datos
+// que quedaron pisados de otro perfil usado antes en este mismo navegador.
+function scopedKey(key) {
+  return key + '::' + (window._perfilId || 'sinperfil');
+}
+
 function syncedSave(localKey, localValue, docId, fbValue) {
-  try { localStorage.setItem(localKey, JSON.stringify(localValue)); } catch(e) {}
+  try { localStorage.setItem(scopedKey(localKey), JSON.stringify(localValue)); } catch(e) {}
   const payload = fbValue !== undefined ? fbValue : localValue;
   if (window._fb && window._fb.stableStringify) {
     window._syncedWriteLog[docId] = { at: Date.now(), value: window._fb.stableStringify(payload) };
@@ -79,7 +91,7 @@ function syncedSave(localKey, localValue, docId, fbValue) {
 // está corrupto.
 function localLoad(localKey) {
   try {
-    const raw = localStorage.getItem(localKey);
+    const raw = localStorage.getItem(scopedKey(localKey));
     return raw ? JSON.parse(raw) : null;
   } catch(e) { return null; }
 }
@@ -333,7 +345,7 @@ function loadState() {
     window._visitedFromFb.forEach((arr, i) => { if (visited[i]) arr.forEach(v => visited[i].add(v)); });
   } else {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(scopedKey(STORAGE_KEY));
       if (raw) { const data = JSON.parse(raw); data.forEach((arr, i) => arr.forEach(v => visited[i].add(v))); }
     } catch(e) {}
   }
@@ -354,7 +366,7 @@ function loadState() {
     }
   } else {
     try {
-      const rawDays = localStorage.getItem(DAYS_KEY);
+      const rawDays = localStorage.getItem(scopedKey(DAYS_KEY));
       if (rawDays) {
         const savedDays = JSON.parse(rawDays);
         if (savedDays.length >= days.length) {
@@ -1407,7 +1419,7 @@ function wmSave() {
   syncedSave(WM_DATA_KEY, wmData, 'walmart', { data: wmData });
   syncedSave(WM_CHECKED_KEY, [...wmChecked], 'wmChecked', { checked: [...wmChecked] });
   // wmOpenSections es solo de UI local, no se sincroniza con Firebase.
-  try { localStorage.setItem(WM_OPEN_KEY, JSON.stringify([...wmOpenSections])); } catch(e){}
+  try { localStorage.setItem(scopedKey(WM_OPEN_KEY), JSON.stringify([...wmOpenSections])); } catch(e){}
 }
 
 function wmLoad() {

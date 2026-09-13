@@ -34,7 +34,6 @@ let currentPerfilId = null;
 function orlandoDocRef(docId) {
   return doc(db, 'usuarios', currentUid, 'perfiles', currentPerfilId, 'orlando', docId);
 }
-
 async function fbSet(docId, data) {
   try { await setDoc(orlandoDocRef(docId), data, { merge: true }); }
   catch(e) { devError("fbSet error", e); }
@@ -238,5 +237,6 @@ onAuthStateChanged(auth, (user) => {
   }
   currentUid = user.uid;
   currentPerfilId = perfilId;
+  window._perfilId = perfilId; // usado por app.js para separar el cache local del navegador por perfil
   startApp();
 });
