@@ -77,9 +77,6 @@ body {
 
 /* HEADER */
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
   background: color-mix(in srgb, var(--bg) 78%, transparent);
   backdrop-filter: blur(14px) saturate(1.4);
   -webkit-backdrop-filter: blur(14px) saturate(1.4);
@@ -921,10 +918,7 @@ body {
   display: flex;
   gap: 8px;
   padding: 14px 0 12px;
-  position: sticky;
-  top: 0;
   background: var(--bg);
-  z-index: 10;
   border-bottom: 1px solid var(--border);
   margin-bottom: 14px;
 }
