@@ -311,7 +311,7 @@ function loadState() {
     } catch(e) {}
   }
   if (window._daysFromFb) {
-    const fbVersion = window._daysFromFb._v || 1;
+    const fbVersion = window._daysVersionFromFb || 1;
     if (fbVersion < DAYS_VERSION) {
       // Las coords del código son más nuevas: actualizar paradas en Firebase
       // pero preservar labels personalizados si los hay

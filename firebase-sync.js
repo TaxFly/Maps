@@ -113,7 +113,7 @@ async function startApp() {
   const [hotelData, daysData, visitedData, mealDataFb, wmDataFb, wmCheckedFb, shopDataFb, packingDataFb, customParksDataFb, parquesExtraDataFb, coordOverridesDataFb, parquesDataFb, budgetDataFb] = results.map(val);
 
   if (hotelData) window._hotelFromFb = hotelData;
-  if (daysData && daysData.days) window._daysFromFb = daysData.days;
+  if (daysData && daysData.days) { window._daysFromFb = daysData.days; window._daysVersionFromFb = daysData.v || 1; }
   if (visitedData && visitedData.visited) window._visitedFromFb = visitedData.visited;
   if (mealDataFb && mealDataFb.meals) window._mealsFromFb = mealDataFb.meals;
   if (wmDataFb && wmDataFb.data) window._wmDataFromFb = wmDataFb.data;
