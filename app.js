@@ -3286,25 +3286,60 @@ async function pkWikiSearchAttractions(parkName) {
   }
 }
 
+// Parsea la sección de wikitext buscando nombres de atracciones. Wikipedia
+// no tiene una estructura uniforme entre parques: unos usan lista simple
+// (líneas con *), otros una tabla (wikitable) con una fila por atracción y
+// columnas de tipo/año/estado además del nombre. Si tratáramos cualquier
+// línea que empieza con "|" como un nombre, mezclaríamos esas otras
+// columnas (año, tipo, estado) como si fueran atracciones — por eso acá
+// llevamos control de en qué fila de la tabla estamos y solo tomamos la
+// PRIMERA celda de cada fila (asumiendo que el nombre va primero, que es
+// la convención más común en estas tablas de Wikipedia).
 function pkParseAttractionNames(wikitext) {
   const names = [];
+  let inTable = false;
+  let rowNameFound = false; // ya se encontró el nombre para la fila actual
   wikitext.split('\n').forEach(raw => {
     let line = raw.trim();
-    if (!line.startsWith('*') && !line.startsWith('|')) return;
-    line = line.replace(/^\*+\s*/, '').replace(/^\|\s*/, '');
-    line = line.replace(/<ref[^>]*>.*?<\/ref>/gi, '').replace(/<ref[^>]*\/>/gi, '');
-    line = line.replace(/\{\{[^}]*\}\}/g, '');
-    const wikilink = line.match(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
+
+    if (line.startsWith('{|')) { inTable = true; rowNameFound = false; return; }
+    if (line.startsWith('|}')) { inTable = false; return; }
+    if (line.startsWith('|-')) { rowNameFound = false; return; }
+    if (line.startsWith('!')) { return; } // celda de encabezado de tabla
+
+    let candidate;
+    if (inTable) {
+      if (!line.startsWith('|') || rowNameFound) return; // ya se tomó el nombre de esta fila, o es otra columna
+      candidate = line.replace(/^\|\s*/, '');
+      // Formato "| Nombre || Tipo || Año || Estado" en una sola línea:
+      // quedarnos solo con la primera celda.
+      candidate = candidate.split('||')[0].trim();
+      // Si la primera celda de la fila es una imagen, no sirve como
+      // nombre — seguimos esperando la próxima celda de esta misma fila.
+      if (/^\[\[\s*(File|Image)\s*:/i.test(candidate) || /\.(jpe?g|png|svg|gif)\b/i.test(candidate)) return;
+    } else if (line.startsWith('*')) {
+      candidate = line.replace(/^\*+\s*/, '');
+    } else {
+      return;
+    }
+
+    candidate = candidate.replace(/<ref[^>]*>.*?<\/ref>/gi, '').replace(/<ref[^>]*\/>/gi, '');
+    candidate = candidate.replace(/\{\{[^}]*\}\}/g, '');
+    candidate = candidate.replace(/<[^>]+>/g, ''); // <br/>, <small>, etc. sueltos
+    const wikilink = candidate.match(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/);
     let name;
     if (wikilink) {
       name = (wikilink[2] || wikilink[1]).trim();
     } else {
-      name = line.replace(/'''/g, '').replace(/''/g, '').trim();
+      name = candidate.replace(/'''/g, '').replace(/''/g, '').trim();
       name = name.split(/\s+[–—-]\s+/)[0];
       name = name.split('(')[0].trim();
     }
     name = name.replace(/\[\[|\]\]/g, '').trim();
-    if (name && name.length > 1 && name.length < 60 && !/^\d+$/.test(name)) names.push(name);
+    if (name && name.length > 1 && name.length < 60 && !/^\d+$/.test(name)) {
+      names.push(name);
+      if (inTable) rowNameFound = true;
+    }
   });
   return [...new Set(names)].slice(0, 40);
 }
